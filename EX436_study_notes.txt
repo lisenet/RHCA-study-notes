@@ -1,0 +1,170 @@
+######################################################################
+## Tomas Nevar <tomas@lisenet.com>
+## Study notes for EX436 High Availability Clustering exam (RHEL7)
+######################################################################
+
+## HA requires installation of Pacemaker software, fencing agents,
+## configuration of the firewall and authentication of nodes:
+
+# yum install -y pcs fence-agents-all
+# firewall-cmd --permanent --add-service=high-availability
+# firewall-cmd --reload
+# systemctl enable pcsd
+# systemctl start pcsd
+# echo password | passwd --stdin hacluster
+# pcs cluster auth -u hacluster -p password node1 node2 node3
+
+
+## Cluster creation (all nodes start and join the cluster automatically):
+
+# pcs cluster setup --enable --start --name mycluster node1 node2 node3
+
+
+## Cluster status:
+
+# pcs status --full
+# pcs status cluster
+# pcs status corosync
+# pcs status groups
+# pcs status nodes
+# pcs status resources
+
+
+## Cluster management (add --all for all nodes):
+
+# pcs cluster start
+# pcs cluster stop
+# pcs cluster enable
+# pcs cluster disable
+# pcs cluster standby
+# pcs cluster unstandby
+# pcs cluster destroy
+
+
+## Add and remove cluster nodes:
+
+# pcs cluster auth -u hacluster -p password node4
+# pcs cluster node add node4 --enable --start
+# pcs cluster node remove node4
+
+
+## Corosync configuration.
+## Check the man page for information!
+
+# man corosync.conf
+> to_stderr
+> to_syslog
+> to_logfile
+> logfile
+> logfile_priority
+> debug
+
+# vim /etc/corosync/corosync.conf
+# pcs cluster sync
+# pcs cluster corosync node1
+
+
+## Quorum configuration.
+## Check the man page for information!
+
+# man votequorum
+> two_node
+> wait_for_all
+> last_man_standing
+> auto_tie_breaker
+> auto_tie_breaker_node
+
+# pcs property --default|grep quorum
+> no-quorum-policy: stop
+
+# vim /etc/corosync/corosync.conf
+# pcs cluster sync
+# pcs status quorum
+# corosync-quorumtool -s
+
+
+## Fencing / STONITH.
+## Check the man page for information!
+
+# man -k fence_*
+# pcs property --default|grep stonith
+> stonith-action: reboot
+> stonith-enabled: true
+> stonith-timeout: 60s
+
+# pcs stonith list
+# pcs stonith describe fence_xvm
+
+## Generic fence agent properties:
+
+> priority
+> pcmk_host_map
+> pcmk_host_list
+> pcmk_host_check
+
+## IMPORTANT: pcmk_host_map parameter maps host names to fence device ports!
+## --- hostname:port ---
+## E.g.: node1.hl.local:kvm-name-node1
+
+# pcs stonith show --full
+# pcs stonith fence node1
+
+
+## Configuration of fence_xvm.
+## Copy /etc/cluster/fence_xvm.key from the hypervisor!
+
+# man fence_xvm
+# firewall-cmd --permanent --add-port=1229/tcp
+# firewall-cmd --reload
+# fence_xvm -o list
+# fence_xvm -o off -H node1
+
+## Fencing for a single node:
+## Fencing for a single node:
+
+# pcs stonith create fence_node1 fence_xvm \
+  key_file="/etc/cluster/fence_xvm.key" \
+  action="reboot" \
+  port="node1" \
+  pcmk_host_list="node1.hl.local"
+
+## Fencing for three cluster nodes:
+
+# pcs stonith create fence_all fence_xvm \
+  key_file="/etc/cluster/fence_xvm.key" \
+  action="reboot" \
+  pcmk_host_map="node1.hl.local:node1,node2.hl.local:node2,node3.hl.local:node3" \
+  pcmk_host_list="node1,node2,node3" \
+  pcmk_host_check="static-list"
+
+
+## Cluster resources and SELinux. There are over 500 different
+## resources available for configuration (see: pcs resource list).
+## Some will have SELinux configuration that needs tweaking.
+## The most powerful way of getting SELinux information is by using
+## man pages. On RHEL 7 SELinux man pages are not installed by default.
+## We need to install them and update the manual page index caches:
+
+# yum install -y policycoreutils-devel
+# sepolicy manpage -a -p /usr/share/man/man8
+# mandb
+# man -k _selinux
+
+## SELinux configuration for Apache:
+
+# man httpd_selinux
+> setsebool -P httpd_use_cifs 1
+> setsebool -P httpd_use_nfs 1
+> setsebool -P httpd_can_network_connect_db 1
+> setsebool -P httpd_can_sendmail 1
+
+## Allow Apache to listen on TCP port 81:
+
+# man semanage-port
+> semanage port -a -t http_port_t -p tcp 81
+
+## EXTREMELLY USEFUL! Install Apache manual
+## and use its module documentation!
+
+# yum install -y httpd-manual elinks
+# elinks -dump /usr/share/httpd/manual/mod/mod_status.html
