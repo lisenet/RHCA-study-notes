@@ -3,6 +3,9 @@
 ## Study notes for EX436 High Availability Clustering exam (RHEL7)
 ######################################################################
 
+## While not an exam requirement, but I found clusterssh very useful
+## when managing multiple SSH sessions on different servers.
+
 ## HA requires installation of Pacemaker software, fencing agents,
 ## configuration of the firewall and authentication of nodes:
 
@@ -48,7 +51,7 @@
 # pcs cluster node remove node4
 
 
-## Corosync configuration.
+## Corosync configuration and logging.
 ## Check the man page for information!
 
 # man corosync.conf
@@ -62,6 +65,12 @@
 # vim /etc/corosync/corosync.conf
 # pcs cluster sync
 # pcs cluster corosync node1
+
+## Pacemaker logging:
+
+# vim /etc/sysconfig/pacemaker
+> PCMK_logfile
+> PCMK_logpriority
 
 
 ## Quorum configuration.
@@ -86,7 +95,7 @@
 ## Fencing / STONITH.
 ## Check the man page for information!
 
-# man -k fence_*
+# man -k fence_
 # pcs property --default|grep stonith
 > stonith-action: reboot
 > stonith-enabled: true
@@ -120,7 +129,6 @@
 # fence_xvm -o off -H node1
 
 ## Fencing for a single node:
-## Fencing for a single node:
 
 # pcs stonith create fence_node1 fence_xvm \
   key_file="/etc/cluster/fence_xvm.key" \
@@ -138,8 +146,8 @@
   pcmk_host_check="static-list"
 
 
-## Cluster resources and SELinux. There are over 500 different
-## resources available for configuration (see: pcs resource list).
+## Cluster resources and SELinux. There are over 200 different
+## cluster resources available for configuration on RHEL 7.1.
 ## Some will have SELinux configuration that needs tweaking.
 ## The most powerful way of getting SELinux information is by using
 ## man pages. On RHEL 7 SELinux man pages are not installed by default.
@@ -168,3 +176,201 @@
 
 # yum install -y httpd-manual elinks
 # elinks -dump /usr/share/httpd/manual/mod/mod_status.html
+
+
+## Cluster email notifications. The following resources
+## can trigger email alerts on resource change:
+
+ocf:heartbeat:MailTo - notifies recipients by email
+ocf:pacemaker:ClusterMon - runs crm_mon in the background
+
+# man ocf_heartbeat_MailTo
+# pcs resource describe MailTo
+# less /usr/lib/ocf/resource.d/heartbeat/MailTo
+
+# pcs resource create clustermail MailTo \
+  email="root@localhost" \
+  subject="Cluster notification"
+
+# man ocf_pacemaker_ClusterMon
+# pcs resource describe ClusterMon
+# less /usr/lib/ocf/resource.d/pacemaker/ClusterMon
+
+# pcs resource add clustermail ClusterMon \
+  extra_options="-E /usr/local/bin/cluster_email.sh" \
+  --clone
+
+## Cloned because we want a copy of the resource on each node.
+
+
+## Cluster troubleshooting:
+
+# pcs status
+# pcs resource failcount show my_resource
+# pcs resource debug-start my_resource --full
+# corosync-quorumtool -s
+# crm_simulate -sL
+# journalctl -lf -u pacemaker -u corosync
+# grep denied /var/log/audit/audit.log
+# sealert -a /var/log/audit/audit.log
+# grep ERROR /var/log/pacemaker.log
+# grep ERROR /var/log/corosync.log
+# firewall-cmd --list-all
+
+
+## iSCSI initiator installation.
+## Don't star the iscsi service, configure the initiator name first!
+
+# yum install -y iscsi-initiator-utils
+# systemctl enable iscsi
+
+# vim /etc/iscsi/initiatorname.iscsi 
+> InitiatorName=iqn.1994-05.com.redhat:node1
+
+## iSCSI target records are stored in "/var/lib/iscsi/nodes/".
+## Records for nodes are created by discovery (even before you log in).
+## Delete the content of the folder if you need to start over!
+
+## iSCSI configuration, startup and timeouts:
+
+# vim /etc/iscsi/iscsid.conf
+> node.startup = automatic
+> node.session.timeo.replacement_timeout = 120
+> node.conn[0].timeo.noop_out_interval = 5
+> node.conn[0].timeo.noop_out_timeout = 5
+
+## Use iSCSI examples from the man page!
+
+# man iscsiadm
+
+# systemctl start iscsi
+# iscsiadm -m discovery -t sendtargets -p <target_ip>
+
+## Log into the target by using both paths!
+
+# iscsiadm -m node -T iqn.2003-01.local.hl.nfs:target -p <path1_ip> -l
+# iscsiadm -m node -T iqn.2003-01.local.hl.nfs:target -p <path2_ip> -l
+
+## Show verbose information for troubleshooting:
+
+# iscsiadm -m discovery -P1
+# iscsiadm -m node -P1
+# iscsiadm -m session -P3
+
+## List iSCSI and block devices:
+
+# lsblk
+# lsscsi
+
+
+## Device mapper multipath:
+
+# yum install -y device-mapper-multipath
+# man mpathconf
+# mpathconf --enable --with_multipathd y --user_friendly_names y
+# multipath -ll
+
+## Multipath configuration:
+
+# grep -ve "^#" -ve "^$" /etc/multipath.conf
+defaults {
+	user_friendly_names yes
+	find_multipaths yes
+	path_grouping_policy	failover
+	no_path_retry		fail
+}
+multipaths {
+	multipath {
+		wwid			36001405688c3235427e49e48d0f04745
+		alias			clusterWeblog
+		path_grouping_policy	failover
+		no_path_retry		fail
+	}
+}
+blacklist {
+	devnode "^vd[a-z]"
+}
+
+## IMPORTANT: the defaults {} section in the multipath.conf produced by
+## the mpathconf command does not contain the actual built-in defaults!
+
+## IMPORTANT: the devices {} section overwrites defaults {}, and
+## the multipaths {} section overwrites devices {}. Remember this:
+## multipaths > devices > defaults
+
+
+## Clustered LVM. The clvmd daemon and the DLM lock manager must be 
+## installed before configuring clustered LVM.
+
+# yum install -y dlm lvm2-cluster
+# lvmconf --enable_cluster
+# systemctl stop lvm2-lvmetad
+
+## The lvmconf command will configure the following:
+> locking_type = 3
+> use_lvmetad = 0
+
+## Cluster dlm and clvmd resources and their ordering:
+
+# pcs resource create mydlm controld op monitor interval=30s on-fail=fence clone interleave=true ordered=true
+# pcs resource create myclvmd clvm op monitor interval=30s on-fail=fence clone interleave=true ordered=true
+# pcs constraint order start mydlm-clone then myclvmd-clone
+# pcs constraint colocation add myclvmd-clone with mydlm-clone
+
+
+## Clustered LVM volume with a GFS2 file system:
+
+# yum install -y gfs2-utils
+# pcs property set no-quorum-policy=freeze
+
+# pvcreate /dev/mapper/mpatha
+# vgcreate -Ay -cy clustervg /dev/mapper/mpatha
+# lvcreate --size 1G --name clusterlv clustervg
+
+## Use examples from the man page!
+
+# man gfs2
+# mkfs.gfs2 -p lock_dlm -t cluster_name:fs_name -j 3 /dev/clustervg/clusterlv 
+
+## !!!IMPORTANT!!!
+## When creating a file system resource, use "noatime" to improve performance.
+## Also, disable gfs2.fsck run on a GFS2 file system at boot time!
+
+# pcs resource describe Filesystem
+# pcs resource create clusterfs Filesystem device="/dev/clustervg/clusterlv" \
+  directory="/cluster_share" fstype="gfs2" options="noatime" run_fsck="no" \
+  op monitor interval=10s on-fail=fence clone interleave=true
+
+# pcs constraint order start clvmd-clone then clusterfs-clone
+# pcs constraint colocation add clusterfs-clone with clvmd-clone
+
+
+## Manage GFS2 filesystems:
+
+# man -k gfs2_
+gfs2_convert (8) - Convert a GFS1 filesystem to GFS2
+gfs2_edit (8)    - Display, print or edit GFS2 or GFS internal structures.
+gfs2_grow (8)    - Expand a GFS2 filesystem
+gfs2_jadd (8)    - Add journals to a GFS2 filesystem
+
+
+## Pacemaker cluster clone options:
+
+> notify	- When stopping or starting a copy of the clone, 
+		  tell all the other copies beforehand.
+> ordered	- Should the copies be started in series (instead of in parallel)?
+> interleave	- If this clone depends on another clone via an ordering constraint, 
+		  is it allowed to start after the local instance of the other clone 
+		  starts, rather than wait for all instances of the other clone to start?
+
+
+## Manage cluster constraints:
+
+> location	- controls the nodes on which resources may run.
+> order		- controls the order in which resources are started/stopped.
+> colocation	- controls whether two resources may run on the same node.
+
+# pcs constraint location <resource id> prefers <node[=score]>
+# pcs constraint location <resource id> avoids <node[=score]>
+# pcs constraint order start <resource id> then start <resource id>
+# pcs constraint colocation add <source resource id> with <target resource id>
