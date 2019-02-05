@@ -1,0 +1,90 @@
+######################################################################
+## Tomas Nevar <tomas@lisenet.com>
+## Study notes for EX407 Ansible Automation exam (RHEL7)
+######################################################################
+
+## When installed, the ansible package provides a base configuration
+## file located at /etc/ansible/ansible.cfg
+##
+## Priority in which the configuration files are processed:
+##  1) $ANSIBLE_CONFIG (an environment variable)
+##  2) ./ansible.cfg (in the current directory)
+##  3) ~/.ansible.cfg (the user's home directory)
+##  4) /etc/ansible/ansible.cfg
+
+## To find out what config file is in use, run the following:
+
+$ ansible --version
+ansible 2.3.1.0
+  config file = /home/ansible/ansible.cfg
+
+## To get started, copy configuration files to the home directory:
+
+$ cp /etc/ansible/ansible.cfg ~/ansible.cfg
+$ cp /etc/ansible/hosts ~/inventory
+
+
+## Example inventory configuration:
+
+$ cat ~/inventory
+[myself]
+127.0.0.1 ansible_connection=local
+[web]
+ansible[2:3].hl.local
+[db]
+ansible[4:5].hl.local ansible_user=dbadmin
+[lab:children]
+web
+db
+
+## If you have static and dynamic inventory files in the same
+## directory, then they are merged and treated as one inventory!
+
+## Show inventory for all:
+
+$ ansible "*" -i ~/inventory --list-hosts
+
+
+## Privilege escalation settings:
+
+$ vim ansible.cfg
+[privilege_escalation]
+#become=False
+#become_method=sudo
+#become_user=root
+#become_ask_pass=False
+
+
+## How to set the default user to use for playbooks:
+
+$ vim ansible.cfg
+remote_user = ansible
+
+
+## If no module is defined, Ansible uses the internally predefined
+## "command" module. Note that this is not a shell!
+## Ad hoc command that generates one line input for each operation:
+
+$ ansible all -m command -a /usr/bin/hostname -o
+
+
+## Ansible module documentation and playbook snippets:
+
+$ ansible-doc -l
+$ ansible-doc -s <module_name>
+
+
+## Ansible executes plays and tasks in the order they are presented!
+## How to check for YAML syntax errors:
+
+$ ansible-playbook --syntax-check <filename>.yaml
+
+
+## Which host(s) the playbook applies to?
+
+$ ansible-playbook <playbook>.yaml --list-hosts
+
+
+## Whats tasks will be performed?
+
+$ ansible-playbook <playbook>.yaml --list-tasks
