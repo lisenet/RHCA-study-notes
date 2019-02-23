@@ -88,7 +88,7 @@
 
 # vim /etc/corosync/corosync.conf
 # pcs cluster sync
-# pcs status quorum
+# pcs status corosync
 # corosync-quorumtool -s
 
 
