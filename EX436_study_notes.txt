@@ -118,7 +118,6 @@
 # pcs stonith show --full
 # pcs stonith fence node1
 
-
 ## Configuration of fence_xvm.
 ## Copy /etc/cluster/fence_xvm.key from the hypervisor!
 
@@ -144,6 +143,15 @@
   pcmk_host_map="node1.hl.local:node1,node2.hl.local:node2,node3.hl.local:node3" \
   pcmk_host_list="node1,node2,node3" \
   pcmk_host_check="static-list"
+
+## Configuration of fence_scsi.
+
+# pcs stonith create fence_myscsi fence_scsi \
+> devices=/dev/disk/by-id/dm-name-mpathc \
+> pcmk_monitor_action=metadata \
+> pcmk_host_list="node1.hl.local node2.hl.local node3.hl.local" \
+> pcmk_reboot_action="off" \
+> meta provides="unfencing"
 
 
 ## Cluster resources and SELinux. There are over 200 different
