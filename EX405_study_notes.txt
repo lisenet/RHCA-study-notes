@@ -1,0 +1,93 @@
+######################################################################
+## Tomas Nevar <tomas@lisenet.com>
+## Study notes for EX405 Configuration Management with Puppet (RHEL7)
+######################################################################
+
+## A Puppet run starts with the Puppet agent gathering facts on the 
+## Puppet node. The facts are sent over HTTPS to the Puppet master. 
+## The Puppet master compiles a catalog and sends the catalog back 
+## to the Puppet node. The Puppet node applies the catalog and sends 
+## a report to the Puppet master. 
+
+
+## Install a Puppet agent:
+
+$ sudo yum -y install puppet
+
+## List available subcommands:
+
+$ puppet --help
+> agent    - the puppet agent daemon
+> apply    - apply Puppet manifests locally
+> cert 	   - manage certificates and requests
+> describe - display help about resource types
+> doc      - generate Puppet references
+> facts    - retrieve and store facts
+> man      - display Puppet manual pages
+> module   - create, install and searche for modules on the Puppet Forge
+> node     - view and manage node definitions
+> parser   - interact directly with the parser
+> resource - the resource abstraction layer shell
+
+
+## Puppet resource titles can contain any characters, but they are 
+## case-sensitive.
+
+## List available resource types:
+
+$ puppet resource --types
+> exec
+> file
+> group
+> notify
+> package
+> service
+> user
+
+## Listing the Puppet resource types only provides the names of resources. 
+## To see the details for using a resource, use the puppet describe command:
+
+$ puppet describe exec
+$ puppet describe service
+
+
+## Getting information about a specific resource type:
+
+$ puppet resource <type> <name>
+
+$ puppet resource service sshd
+service { 'sshd':
+  ensure => 'running',
+  enable => 'true',
+}
+
+
+## Note that file resources create files owned by root with default 
+## permissions of 0644. Directories have default permissions of 0755 
+## when they are created.
+
+## We can define different default values for a resource:
+
+File {
+  ensure => 'file',
+  owner  => 'tomcat',
+  group  => 'tomcat',
+  mode   => '600',
+}
+
+## If an attribute block ends with a semicolon ";" rather than a comma
+## "," then another title, colon and attribute block can be specified. 
+## Puppet will treat this as multiple resources of a single type.
+
+
+## Apply a standalone Puppet manifest to the local system:
+
+$ puppet apply manifest.pp
+
+## Do a dry-run:
+
+$ puppet apply --noop manifest.pp
+
+## Validate the syntax of a manifest:
+
+$ puppet parser validate manifest.pp
