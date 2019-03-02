@@ -14,22 +14,24 @@
 
 $ sudo yum -y install puppet
 
-## List available subcommands:
+## Show available subcommands (output truncated):
 
 $ puppet --help
-> agent    - the puppet agent daemon
-> apply    - apply Puppet manifests locally
-> cert 	   - manage certificates and requests
-> describe - display help about resource types
-> doc      - generate Puppet references
-> facts    - retrieve and store facts
-> man      - display Puppet manual pages
-> module   - create, install and searche for modules on the Puppet Forge
-> node     - view and manage node definitions
-> parser   - interact directly with the parser
-> resource - the resource abstraction layer shell
+> agent         The puppet agent daemon
+> apply         Apply Puppet manifests locally
+> cert          Manage certificates and requests
+> describe      Display help about resource types
+> doc           Generate Puppet references
+> facts         Retrieve and store facts
+> generate      Generates Puppet code from Ruby definitions
+> man           Display Puppet manual pages
+> module        Creates, installs and searches for modules on the Forge
+> node          View and manage node definitions
+> parser        Interact directly with the parser
+> resource      The resource abstraction layer shell
 
 
+## *** Puppet Resources ***
 ## Puppet resource titles can contain any characters, but they are 
 ## case-sensitive.
 
@@ -44,8 +46,8 @@ $ puppet resource --types
 > service
 > user
 
-## Listing the Puppet resource types only provides the names of resources. 
-## To see the details for using a resource, use the puppet describe command:
+## Listing Puppet resource types only provides the names of resources. 
+## To see the details, use the "puppet describe" command:
 
 $ puppet describe exec
 $ puppet describe service
@@ -80,14 +82,243 @@ File {
 ## Puppet will treat this as multiple resources of a single type.
 
 
-## Apply a standalone Puppet manifest to the local system:
+## To apply a standalone Puppet manifest to the local system:
 
 $ puppet apply manifest.pp
 
-## Do a dry-run:
+## Do a dry-run (a basic smoke test). This will ensure that a manifest
+## can be properly compiled from your code:
 
 $ puppet apply --noop manifest.pp
 
-## Validate the syntax of a manifest:
+## IMPORTANT! Validate the syntax of a manifest:
 
 $ puppet parser validate manifest.pp
+
+
+## *** Puppet Modules ***
+## Modules are self-contained bundles of code and data. You can write
+## your own modules, or you can download pre-built modules from Forge.
+## Module names should only contain lowercase letters, numbers, and 
+## underscores, and should begin with a lowercase letter.
+
+## A module is simply a directory tree with a specific structure:
+
+<MODULE NAME>
+  manifests
+  files
+  templates
+  lib
+  facts.d
+  tests
+  spec
+
+## Each manifest in a module's manifests folder should contain one 
+## class or defined type. Also, every module includes a JSON-formatted
+## metadata.json information file.
+
+
+## Show available subcommands:
+
+$ puppet module --help
+> build        Build a module release package
+> changes      Show modified files of an installed module
+> generate     Generate boilerplate for a new module
+> install      Install a module from the Forge or a release archive
+> list         List installed modules
+> search       Search the Puppet Forge for a module
+> uninstall    Uninstall a puppet module
+> upgrade      Upgrade a puppet module
+
+
+## Create a template directory structure for writing a module:
+
+$ puppet module generate <author-modulename>
+
+## Build a Puppet module. The module will be built and packaged in
+## the pkg directory in the module's working directory:
+
+$ puppet module build <author-modulename>
+
+## Install a module from a release archive (requires root privileges):
+
+# puppet module install <author-modulename>/pkg/<author-modulename>.tgz
+
+
+## *** Puppet Classes ***
+## Classes are named blocks of Puppet code, which are stored in modules
+## for later use and are not applied until they are invoked by name.
+## The "include" command is used in a manifest to use a class.
+
+## Example of a simple class definition:
+
+class webserver {
+  package { 'httpd':
+    ensure  => 'present',
+  }
+}
+
+## Example of a simple class with parameters:
+
+class webserver ($version = 'latest') {
+  package {'httpd':
+    ensure => $version, # Using the class parameter from above
+  }
+}
+
+## Note that every Puppet module should have a smoke test defined
+## in tests/init.pp that includes the main class defined by the module!
+
+
+## *** Facter ***
+## The first thing the Puppet agent does when it begins a Puppet run
+## is to identify system facts about the node it is running on.
+
+## Display all facts about the system:
+
+$ facter
+
+## Display a single structured fact:
+
+$ facter os
+
+## Display a single fact nested within a structured fact:
+
+$ facter os.family
+$ facter os.release.major
+
+## Some commonly used facts (from my experience):
+
+$ facter architecture
+$ facter fqdn
+$ facter id
+$ facter ipaddess
+$ facter osfamily
+$ facter operatingsystem
+$ facter operatingsystemmajrelease
+$ facter is_virtual
+
+
+## Facter has the capability to provide additional custom facts.
+## Additional system key=value pairs can be defined either in 
+## a text file, YAML or JSON files in /etc/facter/facts.d.
+
+## Note that custom scripts can also provide Facter with dynamic facts
+## that are collected on the fly. These scripts must be executable!
+
+## Create a custom system fact:
+
+# mkdir -p /etc/facter/facts.d
+# echo "server_group=tomcat" > /etc/facter/facts.d/server_group.txt
+
+$ facter | grep server_group
+server_group => tomcat
+
+
+## *** Git ***
+
+## Show available git subcommands (output truncated):
+
+$ git --help
+> add        Add file contents to the index
+> branch     List, create, or delete branches
+> checkout   Checkout a branch or paths to the working tree
+> clone      Clone a repository into a new directory
+> commit     Record changes to the repository
+> diff       Show changes between commits, commit and working tree, etc
+> init       Create an empty Git repository or reinitialize an existing one
+> log        Show commit logs
+> mv         Move or rename a file, a directory, or a symlink
+> pull       Fetch from and merge with another repository or a local branch
+> push       Update remote refs along with associated objects
+> reset      Reset current HEAD to the specified state
+> rm         Remove files from the working tree and from the index
+> show       Show various types of objects
+> status     Show the working tree status
+
+
+## Set the name you want attached to your commit transactions:
+
+$ git config --global user.name <username>
+
+## Set the email you want attached to your commit transactions:
+
+$ git config --global user.email <email>
+
+## Set the default push action if no refspec is explicitly given:
+
+$ git config --global push.default simple
+
+## List all configured global values:
+
+$ git config --global --list
+
+
+## Create a new local repository:
+
+$ git init <repository-name>
+
+## Clone an existing repository:
+
+$ git clone <repository-url>
+
+## Add all current changes to the next commit:
+
+$ git add ./
+
+## Show all new or modified files to be commited:
+
+$ git status
+
+## Show all commits:
+
+$ git log
+
+
+## Show all existing branches:
+
+$ git branch -av
+
+## Switch to the specified branch and update the working directory:
+
+$ git checkout <branch-name>
+
+## Delete the specified branch:
+
+$ git branch -d <branch-name>
+
+## Show all currently configured remotes:
+
+$ git remote -v
+
+## Prepare file for the next commit:
+
+$ git add <file>
+
+## Commit a specific file adding a message:
+
+$ git commit -m "My commit message" <file>
+
+## Upload changes made locally to the remote repository:
+
+$ git push <remote> <branch>
+
+## Delete the file from the working directory and stage the deletion:
+
+$ git rm <file>
+
+## Remove the file from the staging area (the opposite of git add):
+
+$ git reset <file>
+
+## Revert the file to its original state:
+
+$ git checkout -- <file>
+
+## Shows content differences:
+
+$ git diff 
+
+## Fetch changes made by other users from the repository:
+
+$ git pull
