@@ -9,14 +9,16 @@
 ## to the Puppet node. The Puppet node applies the catalog and sends 
 ## a report to the Puppet master. 
 
+#---------------------------------------------------------------------
 
+## *** Puppet Agent ***
 ## Install a Puppet agent:
 
 $ sudo yum -y install puppet
 
 ## Show available subcommands (output truncated):
 
-$ puppet --help
+$ puppet help
 > agent         The puppet agent daemon
 > apply         Apply Puppet manifests locally
 > cert          Manage certificates and requests
@@ -30,6 +32,7 @@ $ puppet --help
 > parser        Interact directly with the parser
 > resource      The resource abstraction layer shell
 
+#---------------------------------------------------------------------
 
 ## *** Puppet Resources ***
 ## Puppet resource titles can contain any characters, but they are 
@@ -52,7 +55,6 @@ $ puppet resource --types
 $ puppet describe exec
 $ puppet describe service
 
-
 ## Getting information about a specific resource type:
 
 $ puppet resource <type> <name>
@@ -62,7 +64,6 @@ service { 'sshd':
   ensure => 'running',
   enable => 'true',
 }
-
 
 ## Note that file resources create files owned by root with default 
 ## permissions of 0644. Directories have default permissions of 0755 
@@ -95,6 +96,11 @@ $ puppet apply --noop manifest.pp
 
 $ puppet parser validate manifest.pp
 
+## To save time, create an alias and add to ~/.bashrc:
+
+alias ppv='puppet parser validate'
+
+#---------------------------------------------------------------------
 
 ## *** Puppet Modules ***
 ## Modules are self-contained bundles of code and data. You can write
@@ -144,6 +150,7 @@ $ puppet module build <author-modulename>
 
 # puppet module install <author-modulename>/pkg/<author-modulename>.tgz
 
+#---------------------------------------------------------------------
 
 ## *** Puppet Classes ***
 ## Classes are named blocks of Puppet code, which are stored in modules
@@ -169,6 +176,7 @@ class webserver ($version = 'latest') {
 ## Note that every Puppet module should have a smoke test defined
 ## in tests/init.pp that includes the main class defined by the module!
 
+#---------------------------------------------------------------------
 
 ## *** Facter ***
 ## The first thing the Puppet agent does when it begins a Puppet run
@@ -214,9 +222,95 @@ $ facter is_virtual
 $ facter | grep server_group
 server_group => tomcat
 
+#---------------------------------------------------------------------
+
+## *** Puppet Master ***
+## Install a Puppet master:
+
+# yum install -y puppet-server
+# systemctl enable puppetmaster
+# systemctl start puppetmaster
+# firewall-cmd --permanent --add-port=8140/tcp
+# firewall-cmd --reload
+
+## Configure Puppet agent to use the Puppet master:
+
+# vim /etc/puppet/puppet.conf
+[agent]
+  server = puppet-master.example.com
+  runinterval = 1800
+
+# systemctl enable puppet
+# systemctl start puppet
+
+## The Puppet agent will generate a host certificate and send a
+## certificate-signing request to the Puppet master.
+## We need to sign the client certificate on the Puppet master:
+
+# puppet cert list
+# puppet cert sign puppet-agent.example.com
+
+#---------------------------------------------------------------------
+
+## ** Satellite Server **
+## Register Puppet clients to a Red Hat Satellite server.
+## These are copied from my homelab Katello server:
+
+# wget http://katello.hl.local/pub/katello-ca-consumer-latest.noarch.rpm
+# yum install -y katello-ca-consumer-latest.noarch.rpm
+# subscription-manager register --org=lisenet --activationkey="el7-key"
+# yum install -y katello-agent
+
+## Create a Puppet repository on Red Hat Satellite.
+## These are copied from my homelab Katello server:
+
+# hammer product create \
+  --name "puppet_stuff" \
+  --description "Puppet modules"
+
+# hammer repository create \
+  --name "puppet_repo" \
+  --content-type "puppet" \
+  --product "puppet_stuff"
+
+# hammer repository upload-content \
+  --name "puppet_repo" \
+  --product "puppet_stuff" \
+  --organization "Lisenet" \
+  --path /root/lisenet-lisenet_firewall-1.0.0.tar.gz
+
+# hammer content-view create \
+  --name "puppet_modules" \
+  --description "Content view for Puppet modules"
+
+# hammer content-view puppet-module add \
+  --content-view "puppet_modules" \
+  --name "lisenet_firewall"
+
+# hammer content-view publish \
+  --name "puppet_modules" \
+  --description "Publishing Puppet modules"
+
+# hammer content-view version promote \
+  --content-view "puppet_modules" \
+  --version "1.0" \
+  --to-lifecycle-environment "stable"
+
+# hammer activation-key create \
+  --name "el7-key" \
+  --description "Key to use with EL7" \
+  --lifecycle-environment "stable" \
+  --content-view "puppet_modules" \
+  --unlimited-hosts
+
+# hammer activation-key add-subscription \
+  --name "el7-key" \
+  --quantity "1" \
+  --subscription-id "1"
+
+#---------------------------------------------------------------------
 
 ## *** Git ***
-
 ## Show available git subcommands (output truncated):
 
 $ git --help
