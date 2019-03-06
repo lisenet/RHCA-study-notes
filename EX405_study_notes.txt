@@ -253,7 +253,7 @@ file {'/eth/hosts':
 ## The !~ operator performs the opposite (does not match regex).
 
 if $operatingsystemmajrelease == /7/ {
-  notify { "This is a RHEL 7 server server": }
+  notify { "This is a RHEL 7 server": }
 }
 
 if $fqdn =~ /^web[1-3].hl.local$/ {
