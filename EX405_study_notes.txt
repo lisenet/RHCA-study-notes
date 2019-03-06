@@ -176,6 +176,90 @@ class webserver ($version = 'latest') {
 ## Note that every Puppet module should have a smoke test defined
 ## in tests/init.pp that includes the main class defined by the module!
 
+## About relationships and ordering. By default, Puppet applies
+## resources in the order they're declared in their manifest.
+## Puppet uses four metaparameters to establish relationships:
+
+ before    - applies a resource before the target resource.
+ require   - applies a resource after the target resource.
+ notify    - applies a resource before the target resource. The target
+             resource refreshes if the notifying resource changes.
+ subscribe - applies a resource after the target resource. The sub-
+             scribing resource refreshes if the target resource changes.
+
+## The service will be started after the package has been installed:
+
+service { 'vsftpd':
+  ensure => 'running',
+  enable => true,
+  require => Package['vsftpd'],
+}
+package { 'vsftpd':
+  ensure => 'installed',
+}
+
+## You can create relationships between two resources or groups of
+## resources using the -> and ~> operators.
+
+-> (ordering arrow; a hyphen and a greater-than sign) - explained below
+~> (notifying arrow; a tilde and a greater-than sign) - explained below
+
+-> Applies the resource on the left before the resource on the right
+~> Applies the resource on the left first. If the left-hand resource
+   changes, the right-hand resource will refresh.
+
+## The service will be refreshed if the config file changes:
+
+package { 'vsftpd':
+  ensure => present,
+} ->
+file { '/etc/vsftpd/vsftpd.conf':
+  ensure => file,
+  mode   => '0600',
+  source => 'puppet:///modules/vsftpd/vsftpd.conf',
+} ~>
+service { 'vsftpd':
+  ensure => running,
+  enable => true,
+}
+
+#---------------------------------------------------------------------
+
+## *** Puppet Templates ***
+## Puppet supports two templating languages: EPP and ERB.
+## ERB works with all Puppet versions.
+## You can put template files in the templates directory of a module.
+## EPP files should have the .epp extension, and ERB files should have
+## the .erb extension. Here is example below:
+
+file {'/eth/hosts':
+  ensure => 'file',
+  owner => 'root',
+  group => 'root',
+  mode => '644',
+  # loads /etc/puppet/modules/homelab/templates/hosts.erb
+  content => template('homelab/hosts.erb'),
+}
+
+#---------------------------------------------------------------------
+
+## *** Regular Expressions ***
+## Puppet uses Ruby's standard regular expression implementation to
+## match patterns. Regular expressions are written as patterns bordered
+## by forward slashes.
+
+## The == operator checks for exact string matches.
+## The =~ operator is used to evaluate whether a string matches regex.
+## The !~ operator performs the opposite (does not match regex).
+
+if $operatingsystemmajrelease == /7/ {
+  notify { "This is a RHEL 7 server server": }
+}
+
+if $fqdn =~ /^web[1-3].hl.local$/ {
+  notify { "This is a web server": }
+}
+
 #---------------------------------------------------------------------
 
 ## *** Facter ***
