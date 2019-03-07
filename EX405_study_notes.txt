@@ -241,6 +241,12 @@ file {'/eth/hosts':
   content => template('homelab/hosts.erb'),
 }
 
+## Example content of the hosts.erb template file:
+
+127.0.0.1   localhost 
+::1         localhost
+<%= @ipaddress %>   <%= @fqdn %>
+
 #---------------------------------------------------------------------
 
 ## *** Regular Expressions ***
@@ -252,7 +258,7 @@ file {'/eth/hosts':
 ## The =~ operator is used to evaluate whether a string matches regex.
 ## The !~ operator performs the opposite (does not match regex).
 
-if $operatingsystemmajrelease == /7/ {
+if $operatingsystemmajrelease == '7' {
   notify { "This is a RHEL 7 server": }
 }
 
