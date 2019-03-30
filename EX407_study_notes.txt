@@ -12,6 +12,9 @@
 ##  3) ~/.ansible.cfg (the user's home directory)
 ##  4) /etc/ansible/ansible.cfg
 
+#---------------------------------------------------------------------
+
+## *** Ansible Get Started **
 ## To find out what config file is in use, run the following:
 
 $ ansible --version
@@ -22,7 +25,6 @@ ansible 2.3.1.0
 
 $ cp /etc/ansible/ansible.cfg ~/ansible.cfg
 $ cp /etc/ansible/hosts ~/inventory
-
 
 ## Example inventory configuration:
 
@@ -49,16 +51,21 @@ $ ansible "*" -i ~/inventory --list-hosts
 
 $ vim ansible.cfg
 [privilege_escalation]
-#become=False
-#become_method=sudo
-#become_user=root
-#become_ask_pass=False
+become = false
+become_method = sudo
+become_user = root
+become_ask_pass = false
 
 
 ## How to set the default user to use for playbooks:
 
 $ vim ansible.cfg
 remote_user = ansible
+
+## How to set the log file:
+
+$ vim ansible.cfg
+log_path = /home/ansible/ansible.log
 
 
 ## If no module is defined, Ansible uses the internally predefined
@@ -67,6 +74,14 @@ remote_user = ansible
 
 $ ansible all -m command -a /usr/bin/hostname -o
 
+## Use the copy module to change content of a file:
+
+$ ansible all -m copy \
+  -a 'content="Host managed by Ansible\n" dest=/etc/motd' \
+  -u ansible --become
+
+## NOTE: if possible, try to avoid the command, shell and raw modules
+## in playbooks! It's easy to write non-idempotent playbooks this way.
 
 ## Ansible module documentation and playbook snippets:
 
@@ -79,12 +94,133 @@ $ ansible-doc -s <module_name>
 
 $ ansible-playbook --syntax-check <filename>.yaml
 
-
 ## Which host(s) the playbook applies to?
 
 $ ansible-playbook <playbook>.yaml --list-hosts
 
-
 ## Whats tasks will be performed?
 
 $ ansible-playbook <playbook>.yaml --list-tasks
+
+## Playbook dry-run:
+
+$ ansible-playbook -C <playbook>.yaml
+
+## Playbook step-by-step execution:
+
+$ ansible-playbook --step <playbook>.yaml
+
+
+## The beginning of each play begins with a single dash followed by a space.
+## Playbook attributes:
+##
+## name - can be used to give a descriptive label to a play.
+## hosts - must be defined in every play.
+## remote_user - can be used to define the user that runs the tasks.
+## become - can be used to enable privilege escalation.
+## become_method - can be used to define the privilege escalation method.
+## become_user - can define the user account to be used for privilege escalation.
+## tasks - is defined as a list of dictionaries.
+## blocks - can be used to group related tasks together.
+
+## For each play in a playbook, you get to choose which machines in your
+## infrastructure to target and what remote user to complete the steps as.
+## You can use keyword "become" on a particular task instead of the play:
+
+---
+- hosts: webservers
+  remote_user: ansible
+  tasks:
+    - service:
+        name: httpd
+        state: started
+      become: yes
+      become_method: sudo
+
+
+## Host variables take precedence over group variables, but variables
+## defined by a playbook take precedence over both.
+
+#---------------------------------------------------------------------
+
+## Ansible and VIM
+
+## When writing playbooks in vim editor, modify its action in response
+## to Tab key entries. Add the following line to $HOME/.vimrc.
+## It will perform a two space indentation when the Tab key is pressed.
+
+autocmd FileType yaml setlocal ai ts=2 sw=2 et
+
+#---------------------------------------------------------------------
+
+## Ansible Vault
+
+$ ansible-vault [create|decrypt|edit|encrypt|rekey|view] vaultfile.yml
+
+## By default, Ansible uses functions from the python-crypto package to
+## encrypt and decrypt vault files. To speed up decryption at startup,
+## you install the python-cryptography package.
+
+$ ansible-vault create vaultfile.yml
+$ ansible-vault view vaultfile.yml
+
+## Check syntax of a playbook that uses the vault file:
+
+$ ansible-playbook --syntax-check --ask-vault-pass playbook.yml
+
+## Create a password file to use for the playbook execution:
+
+$ echo "ansible" > key
+$ ansible-playbook --syntax-check --vault-password-file=key playbook.yml
+
+#---------------------------------------------------------------------
+
+## *** Ansible facts ***
+## The same thing as facts in Puppet. How to print facts for all hosts?
+
+- name: Ansible 2.7 fact dump
+  hosts: all
+  tasks:
+    - name: Print all Ansible facts
+      debug:
+        var: ansible_facts
+
+## Before Ansible 2.5, facts were injected as individual variables
+## prefixed with the string "ansible_" instead of being part of the
+## ansible_facts variable.
+
+## At the time of writing this, Ansible recognises both the new fact
+## naming system (using ansible_facts) and the old pre 2.5 naming system
+## where facts are injected as separate variables.
+
+## You can use an ad hoc command to run the setup module to print the
+## value of all facts:
+
+$ ansible localhost -m setup
+
+## Some commonly used facts (from my experience with Puppet):
+
+ansible_facts['hostname']
+ansible_facts['fqdn']
+ansible_facts['default_ipv4']['address']
+ansible_facts['os_family']
+
+## To disable fact gathering for a play, you can set the gather_facts
+## keyword to "no":
+
+gather_facts: no
+
+## Similar to Puppet, Ansible supports custom facts. Custom facts can be
+## defined in a static file, formatted as an INI file or using JSON and
+## placed in /etc/ansible/facts.d and the file name must end in ".fact".
+## They can also be executable scripts which generate JSON output,
+## just like a dynamic inventory script.
+## Note: custom fact files cannot be in YAML format!
+
+#---------------------------------------------------------------------
+
+## *** Ansible Loops and Conditional ***
+## Ansible supports iterating a task over a set of items using the loop
+## keyword. A simple loop iterates a task over a list of items.
+## Since Ansible 2.5, the recommended way to write loops is to use the
+## loop keyword. The old syntax used loops prefixed with "with_".
