@@ -198,6 +198,10 @@ $ ansible-playbook --syntax-check --vault-password-file=key playbook.yml
 
 $ ansible localhost -m setup
 
+## Filter results:
+
+$ ansible localhost -m setup -a 'filter=*distribution*'
+
 ## Some commonly used facts (from my experience with Puppet):
 
 ansible_facts['hostname']
@@ -224,3 +228,146 @@ gather_facts: no
 ## keyword. A simple loop iterates a task over a list of items.
 ## Since Ansible 2.5, the recommended way to write loops is to use the
 ## loop keyword. The old syntax used loops prefixed with "with_".
+
+- name: Ensure that packages are present
+  package:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - firewalld
+    - httpd
+    - vsftpd
+
+- name: Ensure that web server ports are open
+  firewalld:
+    service: "{{ item }}"
+    immediate: true
+    permanent: true
+    state: enabled
+  loop:
+    - http
+    - https
+
+
+## *** Ansible Handlers ***
+## Handlers always run in the order specified by the handlers section
+## of the play. A handler called by a task in the tasks part of the
+## playbook will not run until all of the tasks under tasks have been
+## processed.
+
+notify: restart httpd service
+
+handlers:
+  - name: restart httpd service
+    service:
+      name: httpd
+      state: restarted
+
+## If a task fails and the play aborts on that host, any handlers that
+## had been notified by earlier tasks in the play will not run.
+## Use the following to force execution of the handler:
+
+force_handlers: yes
+
+## Handlers are notified when a task reports a "changed" result.
+## Handlers are not notified when it reports an "ok" or "failed" result. 
+
+## Ignore errors:
+
+ignore_errors: yes
+
+#---------------------------------------------------------------------
+
+## *** Commonly Used Files Modules with Examples ***
+
+## The file module acts like chcon when setting file contexts:
+
+- name: Create a file
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Create a file and set permissions
+      file:
+        path: /root/file
+        owner: root
+        group: root
+        mode: 0640
+        state: touch
+        setype: user_tmp_t
+    - name: SELinux type is persistently set to user_tmp_t
+      sefcontext:
+        target: /root/file
+        setype: user_tmp_t
+        state: present
+
+
+- name: Copy a file
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Copy a file
+      copy:
+        src: file
+        dest: /root/file
+        force: yes
+        owner: root
+        group: ansible
+        mode: 0640
+
+
+- name: Add a line to a file
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Add a new line to a file
+      lineinfile:
+        path: /root/file
+        line: "this is the new line"
+        state: present
+
+
+- name: Add block of text to a file
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Add a block of text to an existing file
+      blockinfile:
+        path: /root/file
+        block: |
+          This is the first line to be added.
+          This is the second line to be added.
+        state: present
+
+
+- name: Download a file from managed hosts
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Fetch a file
+      fetch:
+        src: /etc/hosts
+        dest: my-folder
+        flat: no
+
+## A file containing a Jinja2 template does not need to have any 
+## specific file extension.
+
+#---------------------------------------------------------------------
+
+## *** Jinja2 Templates ***
+## Similar to Puppet. Puppet templates are based upon Ruby's ERB,
+## Ansible templates are based upon Jinja2.
+
+## Use the template module to deploy it:
+
+- name: Use a template file
+  hosts: localhost
+  gather_facts: yes
+  tasks:
+    - name: Deploy index.html
+      template:
+        src: templates/index.j2
+        dest: /var/www/html/index.html
+
+$ cat templates/index.j2
+The system kernel is: {{ ansible_kernel }}
