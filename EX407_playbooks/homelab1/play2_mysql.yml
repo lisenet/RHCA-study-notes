@@ -1,0 +1,156 @@
+---
+- name: Basic MySQL Server Playbook
+  hosts: ansible4.hl.local
+  remote_user: dbadmin
+  become: true
+  vars:
+    my_dev: /dev/sdb
+    my_vg: vg_data
+    my_lv: lv_mysql
+    my_mount: /var/lib/mysql
+    my_packages:
+      - mysql-community-server
+      - MySQL-python
+      - firewalld
+    my_services:
+      - mysqld
+      - firewalld
+  tasks:
+    - name: Check System Requirements
+      fail:
+        msg: "The server is not a Red Hat 7 server."
+      when: >
+        ansible_distribution_major_version != "7"
+
+    - name: Create MySQL Repository
+      yum_repository:
+        name: mysql56-community
+        description: MySQL 5.6 YUM repo
+        file: mysql-community
+        baseurl: http://repo.mysql.com/yum/mysql-5.6-community/el/7/x86_64/
+        gpgcheck: yes
+
+    - name: Install MySQL RPM Key
+      rpm_key:
+        key: http://repo.mysql.com/RPM-GPG-KEY-mysql
+        state: present
+
+    - name: Check Device "{{ my_dev }}" Status
+      stat:
+        path: "{{ my_dev }}"
+      register: disk_to_use
+
+    - name: Fail if Device "{{ my_dev }}" Does Not Exist
+      fail:
+        msg: "The device {{ my_dev }} does not exits"
+      when: not disk_to_use.stat.exists
+
+    - name: Create Partition on "{{ my_dev }}"
+      parted:
+        device: "{{ my_dev }}"
+        state: present
+        number: 1
+        part_start: 1MiB
+        part_end: 513MiB
+
+    - name: Create Volume Group "{{ my_vg }}" on "{{ my_dev }}"
+      lvg:
+        vg: "{{ my_vg }}"
+        pvs: "{{ my_dev }}1"
+
+    - name: Create Logical Volume "{{ my_lv }}" on "{{ my_vg }}"
+      lvol:
+        vg: "{{ my_vg }}"
+        lv: "{{ my_lv }}"
+        size: 300M
+
+    - name: Create XFS Filesystem on Logical Volume "{{ my_lv }}"
+      filesystem:
+        dev: "/dev/{{ my_vg }}/{{ my_lv }}"
+        fstype: xfs
+
+    - name: Mount Logical Volume "{{ my_lv }}" on "{{ my_mount }}"
+      mount:
+        path: "{{ my_mount }}"
+        src: "/dev/{{ my_vg }}/{{ my_lv }}"
+        fstype: xfs
+        opts: defaults
+        state: mounted
+
+    - name: Install Packages
+      package:
+        name: "{{ item }}"
+        state: latest
+      loop: "{{ my_packages }}"
+
+    - name: Deploy my.cnf Template
+      template:
+        src: templates/my.cnf.j2
+        dest: /etc/my.cnf
+        owner: root
+        group: root
+        mode: 644
+      notify: restart mysqld
+
+    - name: Start and Enable Services
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: "{{ my_services }}"
+
+    - name: Open Firewalld Port "{{ my_port }}"
+      firewalld:
+        immediate: true
+        permanent: true
+        port: "{{ my_port }}/tcp"
+        state: enabled
+
+    - name: Check MySQL Port "{{ my_port }}"
+      ignore_errors: yes
+      wait_for:
+        host: "{{ ansible_hostname }}"
+        port: "{{ my_port }}"
+        timeout: 3
+
+    - name: Update MySQL Root Password
+      mysql_user: 
+        name: root 
+        host: "{{ item }}" 
+        password: "{{ my_password }}"
+        login_user: root
+        login_password: "{{ my_password }}"
+        check_implicit_admin: yes
+        priv: "*.*:ALL,GRANT"
+      loop:
+        - 127.0.0.1
+        - ::1
+        - localhost 
+
+    - name: Create MySQL User "{{ my_user }}"
+      mysql_user: 
+        name: "{{ my_user }}"
+        host: "{{ item }}" 
+        password: "{{ my_password }}"
+        login_user: root
+        login_password: "{{ my_password }}"
+        check_implicit_admin: yes
+        priv: "*.*:ALL,GRANT"
+      loop:
+        - "%"
+        - 127.0.0.1
+        - ::1
+        - localhost 
+
+    - name: Create MySQL Database "{{ my_database }}"
+      mysql_db:
+        login_user: root
+        login_password: "{{ my_password }}"
+        name: "{{ my_database }}"
+
+  handlers:
+  - name: restart mysqld
+    service:
+      name: mysqld
+      state: restarted
+  

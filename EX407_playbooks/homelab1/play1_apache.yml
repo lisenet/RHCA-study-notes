@@ -1,0 +1,69 @@
+---
+- name: Basic Apache Server Playbook
+  hosts: ansible2.hl.local
+  remote_user: devops
+  become: true
+  vars:
+    my_packages:
+      - httpd
+      - php
+      - php-mysql
+      - firewalld
+      - libsemanage-python
+    my_services:
+      - httpd
+      - firewalld
+    fw_port: 80
+  tasks:
+    - name: Check System Requirements
+      fail:
+        msg: "The server is not a Red Hat 7 server."
+      when: >
+        ansible_distribution_major_version != "7"
+
+    - name: Install Packages
+      package:
+        name: "{{ item }}"
+        state: latest
+      loop: "{{ my_packages }}"
+
+    - name: Set httpd_can_network_connect Flag
+      seboolean:
+        name: httpd_can_network_connect
+        state: yes
+        persistent: yes
+
+    - name: Deploy index.php Template
+      template:
+        src: templates/index.php.j2
+        dest: /var/www/html/index.php
+        owner: root
+        group: root
+        mode: 0755
+      notify: restart httpd
+
+    - name: Start and Enable Services
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: "{{ my_services }}"
+
+    - name: Open Firewalld Port "{{ fw_port }}"
+      firewalld:
+        immediate: true
+        permanent: true
+        port: "{{ fw_port }}/tcp"
+        state: enabled
+    
+    - name: Check Apache Webpage
+      uri:
+        url: http://ansible2.hl.local
+        status_code: 200
+
+  handlers:
+  - name: restart httpd
+    service:
+      name: httpd
+      state: restarted
+  

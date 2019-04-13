@@ -1,0 +1,9 @@
+[web]
+ansible2.hl.local
+
+[database]
+ansible4.hl.local
+
+[dev:children]
+web
+database
