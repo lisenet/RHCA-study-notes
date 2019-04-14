@@ -1,0 +1,5 @@
+# Apache server playbook
+- import_playbook: play1_apache.yml
+
+# HAProxy server playbook
+- import_playbook: play2_haproxy.yml
