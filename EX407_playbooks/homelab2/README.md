@@ -6,6 +6,5 @@ The role is used to install and configure HAProxy to load balance two Apache ser
 
 ```
 $ ansible-galaxy install -r ./roles/requirements.yml -p roles/
-$ ansible-playbook play1_apache.yml
-$ ansible-playbook play2_haproxy.yml
+$ ansible-playbook site.yml
 ```
