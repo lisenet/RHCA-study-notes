@@ -1,0 +1,3 @@
+# from Galaxy
+- src: geerlingguy.haproxy
+  name: haproxy

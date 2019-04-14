@@ -1,0 +1,62 @@
+---
+- name: Configure HAProxy Server
+  hosts: proxy
+  remote_user: devops
+  become: true
+  vars:
+    my_package: firewalld
+    my_service: firewalld
+    my_port: 80
+  roles:
+    - role: haproxy
+      haproxy_frontend_bind_address: '*'
+      haproxy_frontend_port: 80
+      haproxy_frontend_mode: 'http'
+      haproxy_backend_mode: 'http'
+      haproxy_backend_balance_method: 'roundrobin'
+      haproxy_backend_servers:
+        - name: web1
+          address: ansible2.hl.local:80
+        - name: web2
+          address: ansible3.hl.local:80
+  tasks:
+    - name: Install Package "{{ my_package }}"
+      package:
+        name: "{{ my_package }}"
+        state: latest
+
+    - name: Enable Service "{{ my_service }}"
+      service:
+        name: "{{ my_service }}"
+        enabled: yes
+        state: started
+
+    - name: Open Firewall Port "{{ my_port }}"
+      firewalld:
+        immediate: yes
+        permanent: yes
+        port: "{{ my_port }}/tcp"
+        state: enabled
+
+    - name: Test HAProxy
+      uri:
+        url: "http://{{ ansible_fqdn }}"
+        status_code: 200
+        return_content: yes
+      register: result1
+
+    - name: Print Content from Test1
+      debug:
+        msg: "{{ result1.content }}"
+
+    - name: Test HAProxy
+      uri:
+        url: "http://{{ ansible_fqdn }}"
+        status_code: 200
+        return_content: yes
+      register: result2
+
+    - name: Print Content from Test2
+      debug:
+        msg: "{{ result2.content }}"
+

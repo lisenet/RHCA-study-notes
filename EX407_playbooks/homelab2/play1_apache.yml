@@ -1,0 +1,56 @@
+---
+- name: Configure Apache Servers
+  hosts: web
+  remote_user: devops
+  become: true
+  vars:
+    my_packages: 
+      - httpd
+      - firewalld
+    my_services:
+      - httpd
+      - firewalld
+    my_port: 80
+    my_file: index.html
+  tasks:
+    - name: Install Packages
+      package:
+        name: "{{ item }}"
+        state: latest
+      loop: "{{ my_packages }}"
+
+    - name: Enable Services
+      service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop: "{{ my_services }}"
+ 
+    - name: Open Firewall Port "{{ my_port }}"
+      firewalld:
+        immediate: true
+        permanent: true
+        state: enabled
+        port: "{{ my_port }}/tcp"
+
+    - name: Check Port "{{ my_port }}"
+      ignore_errors: yes
+      wait_for:
+        host: "{{ ansible_fqdn }}"
+        port: "{{ my_port }}"
+        timeout: 3
+
+    - name: Create "{{ my_file }}"
+      copy:
+        content: "This is {{ ansible_fqdn }} server."
+        dest: "/var/www/html/{{ my_file }}"
+        owner: root
+        group: root
+        mode: 0644
+      notify: restart httpd
+
+  handlers:
+    - name: restart httpd
+      service:
+        name: httpd
+        state: restarted

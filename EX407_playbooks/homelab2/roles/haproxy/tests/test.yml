@@ -1,0 +1,20 @@
+---
+- hosts: all
+
+  vars:
+    haproxy_socket: ''
+    haproxy_chroot: ''
+    haproxy_user: root
+    haproxy_group: root
+
+    haproxy_backend_servers:
+      - name: app1
+        address: 127.0.0.1:8080
+
+  pre_tasks:
+    - name: Update apt cache.
+      apt: update_cache=yes cache_valid_time=600
+      when: ansible_os_family == 'Debian'
+
+  roles:
+    - role_under_test

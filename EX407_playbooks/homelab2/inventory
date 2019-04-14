@@ -1,0 +1,10 @@
+[web]
+ansible2.hl.local
+ansible3.hl.local
+
+[proxy]
+ansible5.hl.local
+
+[dev:children]
+web
+proxy
