@@ -334,11 +334,11 @@ gather_facts: no
 
 ## Example conditionals:
 
-Equal 					|	==
-Less than 				|	<
+Equal				|	==
+Less than			|	<
 Greater than 			|	>
 Variable exists 		|	is defined
-Variable does not exist	|	is not defined
+Variable does not exist		|	is not defined
 Boolean is true			|	values of 1, True, or yes evaluate to true
 
 ## Logical AND and OR operations are supported:
