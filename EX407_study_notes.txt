@@ -15,16 +15,22 @@
 #---------------------------------------------------------------------
 
 ## *** Ansible Get Started **
+
 ## To find out what config file is in use, run the following:
 
 $ ansible --version
-ansible 2.3.1.0
+ansible 2.7.9
   config file = /home/ansible/ansible.cfg
 
 ## To get started, copy configuration files to the home directory:
 
 $ cp /etc/ansible/ansible.cfg ~/ansible.cfg
 $ cp /etc/ansible/hosts ~/inventory
+
+## Note: the maximum number of simultaneous connections that Ansible
+## makes is controlled by the forks parameter (ansible.cfg):
+
+forks 5
 
 ## Example inventory configuration:
 
@@ -38,6 +44,26 @@ ansible[4:5].hl.local ansible_user=dbadmin
 [lab:children]
 web
 db
+
+## There is a special group named "all" that matches all managed hosts
+## in the inventory.
+
+- hosts: all
+
+## There is also a special group named "ungrouped" which matches all
+## managed hosts in the inventory that are not members of any group.
+
+- hosts: ungrouped
+
+## Quote host patterns used on the CLI to protect them from unwanted
+## shell expansion:
+
+- hosts: '*.hl.local'
+- hosts: '10.11.1.*'
+
+## Multiple entries in the inventory can be referenced using lists:
+
+- hosts: web,ansible3.hl.local
 
 ## If you have static and dynamic inventory files in the same
 ## directory, then they are merged and treated as one inventory!
@@ -87,6 +113,7 @@ $ ansible all -m copy \
 
 $ ansible-doc -l
 $ ansible-doc -s <module_name>
+$ ansible-doc <module_name>
 
 
 ## Ansible executes plays and tasks in the order they are presented!
@@ -101,6 +128,10 @@ $ ansible-playbook <playbook>.yaml --list-hosts
 ## Whats tasks will be performed?
 
 $ ansible-playbook <playbook>.yaml --list-tasks
+
+## Run one task at a time:
+
+$ ansible-playbook <playbook>.yaml --step
 
 ## Playbook dry-run:
 
@@ -130,6 +161,7 @@ $ ansible-playbook --step <playbook>.yaml
 ---
 - hosts: webservers
   remote_user: ansible
+  serial: 2
   tasks:
     - service:
         name: httpd
@@ -137,13 +169,51 @@ $ ansible-playbook --step <playbook>.yaml
       become: yes
       become_method: sudo
 
-
+## Use the serial keyword to run the hosts through the play in batches.
 ## Host variables take precedence over group variables, but variables
 ## defined by a playbook take precedence over both.
 
 #---------------------------------------------------------------------
 
-## Ansible and VIM
+## ** Including and Importing Files **
+
+## When you include content, then Ansible processes included content
+## during the run of the playbook, as content is required.
+
+## When you import content, Ansible processes imported content when
+## the playbook is initially read, before the run starts.
+
+## Note: "include" was replaced in Ansible 2.4 with new directives such
+## as include_tasks, import_tasks, and import_playbook.
+## These can be used to enhance the ability to reuse tasks and playbooks:
+
+import_playbook:
+import_tasks:
+include_tasks:
+
+## Examples:
+
+tasks:
+  - name: Import task file and use variables
+    import_tasks: task.yml
+    vars:
+      package: vsftpd
+      service: vsft
+
+
+  - name: Install the {{ package }} package
+    yum:
+      name: "{{ package }}"
+      state: latest
+  - name: Start the {{ service }} service
+    service:
+      name: "{{ service }}"
+      enabled: true
+      state: started
+
+#---------------------------------------------------------------------
+
+## *** Ansible and VIM ***
 
 ## When writing playbooks in vim editor, modify its action in response
 ## to Tab key entries. Add the following line to $HOME/.vimrc.
@@ -153,7 +223,7 @@ autocmd FileType yaml setlocal ai ts=2 sw=2 et
 
 #---------------------------------------------------------------------
 
-## Ansible Vault
+## *** Ansible Vault ***
 
 $ ansible-vault [create|decrypt|edit|encrypt|rekey|view] vaultfile.yml
 
@@ -175,15 +245,22 @@ $ ansible-playbook --syntax-check --vault-password-file=key playbook.yml
 
 #---------------------------------------------------------------------
 
-## *** Ansible facts ***
+## *** Ansible Facts ***
 ## The same thing as facts in Puppet. How to print facts for all hosts?
 
-- name: Ansible 2.7 fact dump
+- name: Ansible fact dump
   hosts: all
   tasks:
     - name: Print all Ansible facts
       debug:
         var: ansible_facts
+
+- name: Ansible package fact dump
+  hosts: all
+  tasks:
+    - name: Gather package facts
+      package_facts:
+        manager: auto
 
 ## Before Ansible 2.5, facts were injected as individual variables
 ## prefixed with the string "ansible_" instead of being part of the
@@ -202,12 +279,18 @@ $ ansible localhost -m setup
 
 $ ansible localhost -m setup -a 'filter=*distribution*'
 
-## Some commonly used facts (from my experience with Puppet):
+## Some commonly used facts (from my experience with Puppet).
+## In no particular order:
 
 ansible_facts['hostname']
 ansible_facts['fqdn']
 ansible_facts['default_ipv4']['address']
-ansible_facts['os_family']
+ansible_facts['distribution']
+ansible_facts['distribution_major_version']
+ansible_facts['domain']
+ansible_facts['memtotal_mb']
+ansible_facts['processor_count']
+
 
 ## To disable fact gathering for a play, you can set the gather_facts
 ## keyword to "no":
@@ -223,7 +306,8 @@ gather_facts: no
 
 #---------------------------------------------------------------------
 
-## *** Ansible Loops and Conditional ***
+## *** Ansible Loops, Conditionals and Lookups ***
+
 ## Ansible supports iterating a task over a set of items using the loop
 ## keyword. A simple loop iterates a task over a list of items.
 ## Since Ansible 2.5, the recommended way to write loops is to use the
@@ -248,6 +332,40 @@ gather_facts: no
     - http
     - https
 
+## Example conditionals:
+
+Equal 					|	==
+Less than 				|	<
+Greater than 			|	>
+Variable exists 		|	is defined
+Variable does not exist	|	is not defined
+Boolean is true			|	values of 1, True, or yes evaluate to true
+
+## Logical AND and OR operations are supported:
+
+when: ansible_domain == "hl.local" and ansible_distribution == "RedHat"
+when: ansible_processor_cores == "1" or ansible_processor_cores == "2"
+
+## Loops and conditionals can be combined:
+
+- name: Ensure that packages are present on RedHat
+  package:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - firewalld
+    - httpd
+  when: ansible_distribution == "RedHat"
+
+## Lookup plugins allow access to outside data sources. Lookups occur
+## on the local computer, not on the remote computer.
+## One way of using lookups is to populate variables:
+
+vars:
+  motd_value: "{{ lookup('file', '/etc/motd') }}"
+tasks:
+  - debug:
+      msg: "motd value is {{ motd_value }}"
 
 ## *** Ansible Handlers ***
 ## Handlers always run in the order specified by the handlers section
@@ -270,7 +388,7 @@ handlers:
 force_handlers: yes
 
 ## Handlers are notified when a task reports a "changed" result.
-## Handlers are not notified when it reports an "ok" or "failed" result. 
+## Handlers are not notified when it reports an "ok" or "failed" result.
 
 ## Ignore errors:
 
@@ -349,14 +467,43 @@ ignore_errors: yes
         dest: my-folder
         flat: no
 
-## A file containing a Jinja2 template does not need to have any 
-## specific file extension.
+- name: Download a file from remote host
+  hosts: localhost
+  become: false
+    - name: Download file from URL
+      get_url:
+        url: http://katello.hl.local/pub/index.html
+        dest: /tmp/index.html
+
+- name: Disable SSH root login
+  hosts: localhost
+  become: true
+  tasks:
+  - name: Modify SSH server config
+    lineinfile:
+      dest: "/etc/ssh/sshd_config"
+      regexp: "^PermitRootLogin"
+      line: "PermitRootLogin no"
+
+#---------------------------------------------------------------------
+
+## How to generate SHA512 crypted passwords for the user module?
+## The answer is taken from Ansible FAQ.
+
+- name: Create user with password
+    user:
+      name: sandy
+      password: "{{ user_pw | password_hash('sha512') }}"
 
 #---------------------------------------------------------------------
 
 ## *** Jinja2 Templates ***
+
 ## Similar to Puppet. Puppet templates are based upon Ruby's ERB,
 ## Ansible templates are based upon Jinja2.
+
+## A file containing a Jinja2 template does not need to have any
+## specific file extension.
 
 ## Use the template module to deploy it:
 
@@ -371,3 +518,145 @@ ignore_errors: yes
 
 $ cat templates/index.j2
 The system kernel is: {{ ansible_kernel }}
+
+#---------------------------------------------------------------------
+
+## *** Ansible Roles ***
+
+## Similar to Puppet modules, reusable code in a modular fashion.
+## Create a role skeleton:
+
+$ mkdir roles && cd roles
+$ ansible-galaxy init my_test_role
+
+$ tree my_test_role/
+my_test_role/
+├── defaults
+│   └── main.yml
+├── files
+├── handlers
+│   └── main.yml
+├── meta
+│   └── main.yml
+├── README.md
+├── tasks
+│   └── main.yml
+├── templates
+├── tests
+│   ├── inventory
+│   └── test.yml
+└── vars
+    └── main.yml
+
+## As of Ansible 2.4, you can use roles inline with any other tasks
+## using import_role or include_role:
+
+---
+- hosts: webservers
+  tasks:
+  - debug:
+      msg: "before we run our role"
+  - import_role:
+      name: example
+  - include_role:
+      name: example
+  - debug:
+      msg: "after we ran our role"
+
+## Search for roles from the CLI:
+
+$ ansible-galaxy search --author redhat
+$ ansible-galaxy search --galaxy-tags tomcat
+$ ansible-galaxy search tomcat --platforms EL
+
+## Ansible Galaxy is a public library of Ansible roles written by users.
+## Similar to Puppet Forge. Install a role from Galaxy:
+
+$ ansible-galaxy install <author.name> -p ~/.ansible/roles
+
+## List installed roles:
+
+$ ansible-galaxy list -p ~/.ansible/roles/
+- <author.name>, 1.9.5
+
+## To define role source, use requirements.yml:
+
+- src: http://katello.hl.local/pub/ansible-haproxy.tar.gz
+  name: haproxy
+- src: http://katello.hl.local/pub/ansible-mysql.tar.gz
+  name: mysql
+
+$ ansible-galaxy init -r requirements.yml
+
+
+## RHEL system roles:
+
+$ sudo yum install rhel-system-roles
+$ ls /usr/share/doc/rhel-system-roles-1.0/
+kdump
+network
+postfix
+selinux
+timesync
+
+$ ansible-galaxy list
+- rhel-system-roles.selinux, (unknown version)
+- linux-system-roles.network, (unknown version)
+- rhel-system-roles.postfix, (unknown version)
+- rhel-system-roles.timesync, (unknown version)
+- rhel-system-roles.kdump, (unknown version)
+- linux-system-roles.timesync, (unknown version)
+- linux-system-roles.kdump, (unknown version)
+- linux-system-roles.postfix, (unknown version)
+- rhel-system-roles.network, (unknown version)
+- linux-system-roles.selinux, (unknown version)
+
+#---------------------------------------------------------------------
+
+## *** Ansible Variables ***
+
+## Variables for hosts and host groups can be defined by creating two
+## directories, group_vars and host_vars, in the same working directory
+## as the inventory file or directory.
+
+$ cat group_vars/webserver
+my_package: httpd
+
+$ cat group_vars/database
+my_package: mariadb
+
+## Whether or not you define any variables, you can access information
+## about your hosts with the Special Variables Ansible provides,
+## including "magic" variables, facts, and connection variables.
+
+## The most commonly used magic variables are:
+
+hostvars
+groups
+group_names
+inventory_hostname
+
+## The group_names variable contains a list of all the groups the
+## current host is in. We can use it to install specific packages:
+
+tasks:
+  - name: Install webserver packages
+    package:
+      name: "{{ item }}"
+      state: latest
+    loop:
+      - httpd
+      - firewalld
+    when: "'webserver' in group_names"
+
+## The hostvars variable lets you access variables for another host,
+## including facts that have been gathered about that host.
+
+{{ hostvars['ansible2.hl.local']['ansible_default_ipv4']['address'] }}
+{{ hostvars['ansible2.hl.local']['ansible_fqdn'] }}
+
+## The inventory_hostname variable is the name of the hostname as
+## configured in Ansible's inventory host file.
+## The groups variable is a list of all the groups in the inventory.
+
+when: inventory_hostname in groups["webservers"]
