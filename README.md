@@ -11,11 +11,11 @@ A repository to keep study notes and other useful info for RHCA exams.
 
 ## Topics in Progress
 
-* E407 - Ansible
+* EX407 - Ansible
+* EX403 - Satellite Deployment and Systems Management
 
 ## Topics of Interest
 
-* EX403 - Satellite Deployment and Systems Management
 * EX415 - Security
 * EX342 - Diagnostics and Troubleshooting
 * EX442 - Performance Tuning
