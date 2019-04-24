@@ -1,0 +1,109 @@
+######################################################################
+## Tomas Nevar <tomas@lisenet.com>
+## Study notes for EX403 Satellite 6 Deployment and Systems Management
+######################################################################
+
+## Red Hat Satellite 6 is a federation of several upstream open source
+## projects, including Foreman, Katello, Pulp and Candlepin.
+
+* Foreman: provisioning on new clients.
+* Pulp: patch and content (package repository) management.
+* Candlepin: subscription and entitlement management.
+* Katello: unified workflow and WebUI for Pulp and Candlepin.
+* Puppet: configuration management.
+
+## Red Hat Satellite 6 hardware and software requirements:
+
+* The latest version of RHEL 6 server or 7 server.
+* A minimum of 2 CPU cores, but 4 CPU cores are recommended.
+* A minimum of 8 GB memory but ideally 12 GB of memory.
+* Use 4 GB of swap space where possible.
+* No Java virtual machine installed on the system.
+* No Puppet RPM files installed on the system.
+* No third-party unsupported yum repositories enabled.
+* Full forward and reverse DNS resolution using a FQDN.
+* At least 10GB of free disk space for disconnected installations.
+
+#---------------------------------------------------------------------
+
+## Install Red Hat Satellite Server from an ISO image.
+
+# firewall-cmd --permanent --add-service=RH-Satellite-6
+# firewall-cmd --permanent --add-port={53,67,68,69}/udp
+# firewall-cmd --permanent --add-port=53/tcp
+# firewall-cmd --reload
+
+# wget http://example.com/satellite-6-dvd.iso
+# mount -o loop ./satellite-6-dvd.iso /mnt
+
+## Package installation may take up to 10 minutes:
+
+# cd /mnt && ./install_packages
+# cd && umount /mnt
+
+## It may take around 20 minutes to install the server:
+
+# satellite-installer --scenario satellite \
+  --foreman-admin-username admin \
+  --foreman-admin-password password
+
+## On the Satellite server, generate a certificate for the capsule: 
+
+# capsule-certs-generate --capsule-fqdn capsule.example.com \
+  --certs-tar ~/capsule.example.com.tar
+
+ To finish the capsule installation, follow these steps:
+
+  satellite-installer --scenario capsule\
+    --capsule-parent-fqdn                  "satellite.example.com"\
+    --foreman-proxy-register-in-foreman    "true"\
+    --foreman-proxy-foreman-base-url       "https://satellite.example.com"\
+    --foreman-proxy-trusted-hosts          "satellite.example.com"\
+    --foreman-proxy-trusted-hosts          "capsule.example.com"\
+    --foreman-proxy-oauth-consumer-key     "A5EVNBrjxaW9qKV7omorF6nU43BjcMMf"\
+    --foreman-proxy-oauth-consumer-secret  "Jctj8K26M8yLTTCFtQrWFAyxb28ssHcr"\
+    --capsule-pulp-oauth-secret            "LFnPpEru7UuwMNGDnjRkzGrVNwTGwA9U"\
+    --capsule-certs-tar                    "/root/capsule.example.com.tar"
+  The full log is at /var/log/capsule-certs-generate.log
+
+# scp /root/capsule.example.com.tar capsule.example.com:~/
+
+#---------------------------------------------------------------------
+
+## Install a Red Hat Satellite capsule server using an ISO image.
+
+# firewall-cmd --permanent --add-port={53,67,69}/udp
+# firewall-cmd --permanent --add-port={53,5647,8000,8443,9090}/tcp
+# firewall-cmd --permanent --add-service={http,https,puppet}
+# firewall-cmd --reload
+
+# Register capsule to Satellite under the Default_Organization:
+
+# yum -y localinstall \
+  http://satellite.example.com/pub/katello-ca-consumer-latest.noarch.rpm
+# subscription-manager register --org "Default_Organization"
+
+# wget http://example.com/satellite-capsule-6-dvd.iso
+# mount -o loop ./satellite-capsule-6-dvd.iso /mnt
+# cp /mnt/media.repo /etc/yum.repos.d/capsule.repo
+# echo "baseurl=file:///mnt/" >> /etc/yum.repos.d/capsule.repo
+# chmod 0644 /etc/yum.repos.d/capsule.repo
+# rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+# yum install -y satellite-capsule
+
+## Configure capsule as a content node using the satellite-installer
+## command that was displayed previously in the output of the
+## capsule-certs-generate command executed on the Satellite server:
+
+# satellite-installer --scenario capsule \
+ --capsule-parent-fqdn                  "satellite.example.com" \
+ --foreman-proxy-register-in-foreman    "true" \
+ --foreman-proxy-foreman-base-url       "https://satellite.example.com" \
+ --foreman-proxy-trusted-hosts          "satellite.example.com" \
+ --foreman-proxy-trusted-hosts          "capsule.example.com" \
+ --foreman-proxy-oauth-consumer-key     "A5EVNBrjxaW9qKV7omorF6nU43BjcMMf" \
+ --foreman-proxy-oauth-consumer-secret  "Jctj8K26M8yLTTCFtQrWFAyxb28ssHcr" \
+ --capsule-pulp-oauth-secret            "LFnPpEru7UuwMNGDnjRkzGrVNwTGwA9U" \
+ --capsule-certs-tar                    "/root/capsule.example.com.tar"
+
+## It may take around 5 minutes to configure the capsule.
