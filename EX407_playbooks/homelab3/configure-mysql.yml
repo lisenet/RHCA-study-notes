@@ -1,0 +1,10 @@
+---
+- name: Install and Configure MySQL Server
+  hosts: database
+  become: true
+  gather_facts: yes
+  vars_files:
+    - vars/vault.yml
+    - vars/mysql_php.yml
+  roles:
+    - homelab-mysql

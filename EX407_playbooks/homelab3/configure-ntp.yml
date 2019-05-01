@@ -1,0 +1,17 @@
+---
+- name: Configure NTP using system role
+  hosts: all
+  become: true
+  gather_facts: yes
+  ignore_errors: yes
+  vars:
+    timesync_ntp_servers:
+      - hostname: admin1.hl.local
+        iburst: yes
+      - hostname: admin2.hl.local
+        iburst: yes
+  tasks:
+    - name: Configure NTP
+      include_role:
+        name: rhel-system-roles.timesync
+... 

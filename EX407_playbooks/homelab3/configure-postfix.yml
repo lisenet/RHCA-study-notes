@@ -1,0 +1,15 @@
+---
+- name: Configure Postfix using system role
+  hosts: web,database
+  become: true
+  gather_facts: yes
+  vars:
+    postfix_conf:
+      relay_host: "admin1.hl.local"
+      smtp_fallback_relay: "admin2.hl.local"
+    postfix_check: true
+    postfix_backup: false
+    postfix_backup_multiple: false
+  roles:
+    - rhel-system-roles.postfix
+...

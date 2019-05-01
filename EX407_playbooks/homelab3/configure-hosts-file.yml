@@ -1,0 +1,17 @@
+---
+- name: Configure Hosts File
+  hosts: all
+  become: true
+  gather_facts: yes
+  vars:
+    my_file: /etc/hosts
+    my_template: templates/hosts.j2
+  tasks:
+    - name: Create "{{ my_file }}" Files
+      template:
+        src: "{{ my_template }}"
+        dest: "{{ my_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+...

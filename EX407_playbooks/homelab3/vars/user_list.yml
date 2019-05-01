@@ -1,0 +1,15 @@
+---
+users:
+  - username: alice
+    group: webops
+    uid: 1201
+  - username: vincent
+    group: webops
+    uid: 1202
+  - username: sandy
+    group: dba
+    uid: 1203
+  - username: patrick
+    group: dba
+    uid: 1204
+

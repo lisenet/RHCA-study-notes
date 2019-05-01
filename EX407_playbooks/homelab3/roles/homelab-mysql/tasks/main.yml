@@ -1,0 +1,130 @@
+---
+# tasks file for homelab-mysql
+- name: Check system requirements
+  fail:
+    msg: "The server is not a Red Hat 7 server."
+  when: ansible_distribution_major_version != "7"
+
+- name: Create MySQL repository
+  yum_repository:
+    name: mysql56-community
+    description: "MySQL 5.6 Community Repo"
+    state: present
+    baseurl: http://repo.mysql.com/yum/mysql-5.6-community/el/7/x86_64/
+    file: mysql-community
+    enabled: yes
+    gpgcheck: yes
+
+- name: Install MySQL RPM GPG Key
+  rpm_key:
+    state: present
+    key: http://repo.mysql.com/RPM-GPG-KEY-mysql
+
+- name: Check device "{{ my_dev }}" status
+  stat:
+    path: "{{ my_dev }}"
+  register: my_device_to_use
+
+- name: Fail if device "{{ my_dev }}" does not exist
+  fail:
+    msg: "Device {{ my_dev }} does not exist"
+  when: not my_device_to_use.stat.exists
+
+- name: Create partition on "{{ my_dev }}"
+  parted:
+    device: "{{ my_dev }}"
+    number: 1
+    state: present
+    part_start: 1MiB
+    part_end: 100%
+    part_type: primary
+
+- name: Create volume group "{{ my_vg }}"
+  lvg:
+    vg: "{{ my_vg }}"
+    state: present
+    pvs: "{{ my_dev }}1"
+
+- name: Create logical volume "{{ my_lv }}"
+  lvol:
+    vg: "{{ my_vg }}"
+    state: present
+    lv: "{{ my_lv }}"
+    size: 500M
+
+- name: Create XFS filesystem on logical volume
+  filesystem:
+    fstype: xfs
+    dev: "/dev/{{ my_vg }}/{{ my_lv }}"
+    force: no
+
+- name: Install Packages
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ my_role2_packages }}"
+
+- name: Deploy my.cnf Template
+  template:
+    src: my.cnf.j2
+    dest: /etc/my.cnf
+    owner: root
+    group: root
+    mode: "644"
+  notify: restart mysqld
+
+- name: Start and Enable Services
+  service:
+    name: "{{ my_role2_service }}"
+    state: started
+    enabled: yes
+
+- name: Open Firewalld Port "{{ my_port }}"
+  firewalld:
+    immediate: true
+    permanent: true
+    port: "{{ my_port }}/tcp"
+    state: enabled
+
+- name: Check MySQL Port "{{ my_port }}"
+  ignore_errors: yes
+  wait_for:
+    host: "{{ ansible_hostname }}"
+    port: "{{ my_port }}"
+    timeout: 3
+
+- name: Update MySQL Root Password
+  mysql_user: 
+    name: root 
+    host: "{{ item }}" 
+    password: "{{ my_password }}"
+    login_user: root
+    login_password: "{{ my_password }}"
+    check_implicit_admin: yes
+    priv: "*.*:ALL,GRANT"
+  loop:
+    - 127.0.0.1
+    - ::1
+    - localhost 
+
+- name: Create MySQL User "{{ my_user }}"
+  mysql_user: 
+    name: "{{ my_user }}"
+    host: "{{ item }}" 
+    password: "{{ my_password }}"
+    login_user: root
+    login_password: "{{ my_password }}"
+    check_implicit_admin: yes
+    priv: "*.*:ALL,GRANT"
+  loop:
+    - "%"
+    - 127.0.0.1
+    - ::1
+    - localhost 
+
+- name: Create MySQL Database "{{ my_database }}"
+  mysql_db:
+    login_user: root
+    login_password: "{{ my_password }}"
+    name: "{{ my_database }}"
+

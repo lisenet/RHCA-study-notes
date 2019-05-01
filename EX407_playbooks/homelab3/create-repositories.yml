@@ -1,0 +1,37 @@
+---
+- name: Configure YUM Repositories
+  hosts: all
+  become: true
+  gather_facts: yes
+  vars:
+    my_repo_file: rhel7dvd.repo
+  tasks:
+    - name: Check System Requirements
+      fail:
+        msg: "The server is not a Red Hat 7 server."
+      when: ansible_distribution_major_version != "7"
+
+    - name: Deploy "{{ my_repo_file }}" File
+      copy:
+        src: "files/{{ my_repo_file }}"
+        dest: "/etc/yum.repos.d/{{ my_repo_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+        force: yes
+
+    - name: Create MySQL Repository
+      yum_repository:
+        name: mysql56-community
+        description: MySQL 5.6 YUM repo
+        file: mysql-community
+        baseurl: http://repo.mysql.com/yum/mysql-5.6-community/el/7/x86_64/
+        gpgcheck: yes
+      when: "'database' in group_names"
+
+    - name: Install MySQL RPM Key
+      rpm_key:
+        key: http://repo.mysql.com/RPM-GPG-KEY-mysql
+        state: present
+      when: "'database' in group_names"
+...

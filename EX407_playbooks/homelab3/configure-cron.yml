@@ -1,0 +1,14 @@
+---
+- name: Configure cron
+  hosts: database,web
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Configure cron to send emails
+      cron:
+        name: "Send a daily email"
+        job: "hostname|mailx -s Ansible_cronjob root@localhost"
+        minute: "0"
+        hour: "8"
+        state: present
+...

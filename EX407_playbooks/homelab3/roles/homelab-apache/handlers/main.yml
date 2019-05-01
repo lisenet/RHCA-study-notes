@@ -1,0 +1,6 @@
+---
+# handlers file for homelab-apache
+- name: restart httpd
+  service:
+    name: httpd
+    state: restarted

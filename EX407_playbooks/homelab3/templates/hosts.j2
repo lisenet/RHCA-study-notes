@@ -1,0 +1,8 @@
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+{{ hostvars['ansible2.hl.local']['ansible_default_ipv4']['address'] }} {{ hostvars['ansible2.hl.local']['ansible_fqdn'] }} {{ hostvars['ansible2.hl.local']['ansible_hostname'] }}
+{{ hostvars['ansible3.hl.local']['ansible_default_ipv4']['address'] }} {{ hostvars['ansible3.hl.local']['ansible_fqdn'] }} {{ hostvars['ansible3.hl.local']['ansible_hostname'] }}
+{{ hostvars['ansible4.hl.local']['ansible_default_ipv4']['address'] }} {{ hostvars['ansible4.hl.local']['ansible_fqdn'] }} {{ hostvars['ansible4.hl.local']['ansible_hostname'] }}
+{{ hostvars['ansible5.hl.local']['ansible_default_ipv4']['address'] }} {{ hostvars['ansible5.hl.local']['ansible_fqdn'] }} {{ hostvars['ansible5.hl.local']['ansible_hostname'] }}
+{{ hostvars['ansible6.hl.local']['ansible_default_ipv4']['address'] }} {{ hostvars['ansible6.hl.local']['ansible_fqdn'] }} {{ hostvars['ansible6.hl.local']['ansible_hostname'] }}

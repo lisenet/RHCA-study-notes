@@ -1,0 +1,13 @@
+---
+- name: Configure SELinux using system role
+  hosts: web
+  become: true
+  gather_facts: yes
+  vars:
+    selinux_policy: targeted
+    selinux_state: enforcing
+    selinux_booleans:
+    - { name: 'httpd_can_network_connect', state: 'on' }
+  roles:
+    - rhel-system-roles.selinux
+...

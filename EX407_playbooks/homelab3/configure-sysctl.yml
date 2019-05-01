@@ -1,0 +1,25 @@
+---
+- name: Configure Kernel Attributes
+  hosts: all
+  become: true
+  gather_facts: no
+  vars:
+    my_sysctl:
+      - name: kernel.panic
+        value: 10
+      - name: net.ipv4.ip_forward
+        value: 0 
+      - name: net.ipv4.tcp_syncookies
+        value: 1
+      - name: net.ipv4.tcp_timestamps
+        value: 1
+      - name: vm.swappiness
+        value: 10
+  tasks:
+    - name: Configure sysctl values
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+      loop: "{{ my_sysctl }}"
+...

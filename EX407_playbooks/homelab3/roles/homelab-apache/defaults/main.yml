@@ -1,0 +1,8 @@
+---
+# defaults file for homelab-apache
+my_role_packages:
+  - httpd
+  - php
+  - php-mysql
+my_role_service: httpd
+my_role_fwport: 80

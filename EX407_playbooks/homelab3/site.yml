@@ -1,0 +1,15 @@
+- import_playbook: create-repositories.yml
+- import_playbook: configure-hosts-file.yml
+- import_playbook: install-packages.yml
+- import_playbook: configure-sshd.yml
+- import_playbook: configure-motd.yml
+- import_playbook: create-users.yml
+- import_playbook: configure-ntp.yml
+- import_playbook: configure-selinux.yml
+- import_playbook: configure-postfix.yml
+- import_playbook: configure-mysql.yml
+- import_playbook: configure-apache.yml
+- import_playbook: configure-sysctl.yml
+- import_playbook: configure-haproxy.yml
+- import_playbook: configure-cron.yml
+- import_playbook: configure-vsftpd.yml

@@ -1,0 +1,10 @@
+---
+# defaults file for homelab-mysql
+my_dev: /dev/sdb
+my_vg: vg_data
+my_lv: lv_mysql
+my_mount: /var/lib/mysql
+my_role2_packages:
+  - mysql-community-server
+  - MySQL-python
+my_role2_service: mysqld

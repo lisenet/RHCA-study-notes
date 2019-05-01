@@ -1,0 +1,13 @@
+---
+- name: Configure MOTD
+  hosts: all
+  become: true
+  gather_facts: yes
+  vars:
+    my_file: /etc/motd
+  tasks:
+    - name: Configure "{{ my_file }}" file
+      copy:
+        dest: "{{ my_file }}"
+        content: "Host {{ ansible_hostname }} managed by Ansible\n"
+...

@@ -1,0 +1,28 @@
+---
+- name: Install Packages
+  hosts: proxy,web,database
+  become: true
+  gather_facts: no
+  tasks:
+    - name: Install packages based on group_vars
+      package:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ my_packages }}"
+
+    - name: Update all packages in the proxy group
+      package:
+        name: "*"
+        state: latest
+      when: "'proxy' in group_names"
+
+    - name: Get the RPM package facts in the proxy group
+      package_facts:
+        manager: "auto"
+      when: "'proxy' in group_names"
+
+   # - name: Show RPM package facts
+   #   debug:
+   #     msg: "{{ ansible_facts.packages }}"
+   #   when: "'proxy' in group_names"
+...

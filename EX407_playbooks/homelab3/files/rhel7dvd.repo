@@ -1,0 +1,20 @@
+[dvd]
+name=rhel7 dvd
+baseurl=file:///mnt/rhel7dvd
+enabled=1
+gpgcheck=1
+gpgkey=file:///mnt/rhel7dvd/RPM-GPG-KEY-redhat-release
+
+[dvd-ha]
+name=add-on HighAvailability
+baseurl=file:///mnt/rhel7dvd/addons/HighAvailability
+enabled=1
+gpgcheck=1
+gpgkey=file:///mnt/rhel7dvd/RPM-GPG-KEY-redhat-release
+
+[dvd-rs]
+name=add-on ResilientStorage
+baseurl=file:///mnt/rhel7dvd/addons/ResilientStorage
+enabled=1
+gpgcheck=1
+gpgkey=file:///mnt/rhel7dvd/RPM-GPG-KEY-redhat-release

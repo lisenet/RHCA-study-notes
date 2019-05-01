@@ -1,0 +1,4 @@
+my_database: homelab
+my_user: dbadmin
+my_host: ansible5.hl.local
+my_port: 3306

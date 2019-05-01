@@ -1,0 +1,6 @@
+---
+# handlers file for homelab-mysql
+- name: restart mysqld
+  service:
+    name: mysqld
+    state: restarted

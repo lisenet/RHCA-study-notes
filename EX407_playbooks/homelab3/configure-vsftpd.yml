@@ -1,0 +1,44 @@
+---
+- name: Playbook to Configure vsftpd
+  hosts: all
+  become: true
+  gather_facts: yes
+  tasks:
+    - name: Check System Requirements
+      fail:
+        msg: "The server is not a Red Hat 7 server."
+      when: >
+        ansible_distribution_major_version != "7"
+sent
+
+    - name: Open firewall "{{ my_ftp_port }}"
+      firewalld:
+        immediate: yes
+        permanent: yes
+        state: enabled
+        port: "{{ my_ftp_port }}/tcp"
+
+    - name: Enable "{{ my_ftp_name }}" service
+      service:
+        name: "{{ my_ftp_name }}"
+        state: started
+        enabled: yes
+
+    - name: Check FTP port "{{ my_ftp_port }}"
+      ignore_errors: yes
+      wait_for:
+        host: "{{ ansible_fqdn }}"
+        port: "{{ my_ftp_port }}"
+        timeout: 2
+...
+
+        mode: "0644"
+        setype: public_content_rw_t
+
+    - name: Check FTP port "{{ my_ftp_port }}"
+      ignore_errors: yes
+      wait_for:
+        host: "{{ ansible_fqdn }}"
+        port: "{{ my_ftp_port }}"
+        timeout: 2
+...

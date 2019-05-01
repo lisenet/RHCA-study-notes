@@ -1,0 +1,29 @@
+---
+- name: Show Disk Info
+  hosts: database
+  gather_facts: yes
+  tasks:
+    - name: Gather disk info using stat
+      stat:
+        path: /dev/sdb
+      register: disk_to_use
+
+    - name: Show disk info from stat
+      debug:
+        msg: "{{ disk_to_use }}"
+
+    - name: Show disk info from ansible facts
+      debug:
+        msg: "{{ ansible_devices.sdb }}"
+
+    - name: Gather disk info using parted
+      become: true
+      parted:
+        device: /dev/sdb
+        unit: MiB
+      register: sdb_info
+
+    - name: Show disk info from parted
+      debug:
+        msg: "{{ sdb_info }}"
+...

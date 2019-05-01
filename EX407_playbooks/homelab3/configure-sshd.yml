@@ -1,0 +1,29 @@
+---
+- name: Configure OpenSSH Server
+  hosts: all
+  become: true
+  gather_facts: no
+  vars:
+    my_file: /etc/ssh/sshd_config
+  tasks:
+    - name: Configure SSHD Banner
+      lineinfile:
+        path: "{{ my_file }}"
+        state: present
+        regexp: "^Banner"
+        line: "Banner /etc/motd"
+
+    - name: Configure SSHD Root Login
+      lineinfile:
+        path: "{{ my_file }}"
+        state: present
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin without-password"
+
+    - name: Configure Password Authetication
+      lineinfile:
+        path: "{{ my_file }}"
+        state: present
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication yes"
+...

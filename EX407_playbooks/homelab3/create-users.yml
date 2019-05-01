@@ -1,0 +1,90 @@
+---
+- name: Create Users and Groups
+  hosts: web,database
+  become: true
+  gather_facts: yes
+  vars_files:
+    - vars/user_list.yml
+    - vars/vault.yml
+  vars:
+    my_web_group: webops
+    my_dba_group: dba
+  tasks:
+    - name: Create group "{{ my_web_group }}"
+      group:
+        name: "{{ my_web_group }}"
+        state: present
+      when: "'web' in group_names"
+
+    - name: Create group "{{ my_dba_group }}"
+      group:
+        name: "{{ my_dba_group }}"
+        state: present
+      when: "'database' in group_names"
+
+    - name: Create "{{ my_web_group }}" users
+      user:
+        name: "{{ item.username }}"
+        groups: "{{ item.group }}"
+        uid: "{{ item.uid }}"
+        shell: /bin/bash
+        password: "{{ webops_password | password_hash('sha512') }}"
+        update_password: on_create
+      loop: "{{ users }}"
+      when:
+        - item.group == my_web_group
+        - "'web' in group_names"
+
+    - name: Create "{{ my_dba_group }}" users
+      user:
+        name: "{{ item.username }}"
+        groups: "{{ item.group }}"
+        uid: "{{ item.uid }}"
+        shell: /bin/bash
+        password: "{{ dba_password | password_hash('sha512') }}"
+        update_password: on_create
+      loop: "{{ users }}"
+      when:
+        - item.group == my_dba_group
+        - "'database' in group_names"
+
+    - name: Create "{{ my_web_group }}" Authorised Keys
+      authorized_key:
+        user: "{{ item.username }}"
+        state: present
+        key: "{{ lookup('file', 'files/id_rsa_' + item.username + '.pub') }}"
+      loop: "{{ users }}"
+      when:
+        - item.group == my_web_group
+        - "'web' in group_names"
+
+    - name: Create "{{ my_dba_group }}" Authorised Keys
+      authorized_key:
+        user: "{{ item.username }}"
+        state: present
+        key: "{{ lookup('file', 'files/id_rsa_' + item.username + '.pub') }}"
+      loop: "{{ users }}"
+      when:
+        - item.group == my_dba_group
+        - "'database' in group_names"
+
+    - name: Configure sudo for "{{ my_web_group }}"
+      lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: "^%{{ my_web_group }}"
+        line: "%{{ my_web_group }} ALL=(ALL) NOPASSWD: ALL"
+        validate: '/usr/sbin/visudo -cf %s'
+      when:
+        - "'web' in group_names"
+
+    - name: Configure sudo for "{{ my_dba_group }}"
+      lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: "^%{{ my_dba_group }}"
+        line: "%{{ my_dba_group }} ALL=(ALL) NOPASSWD: ALL"
+        validate: '/usr/sbin/visudo -cf %s'
+      when:
+        - "'database' in group_names"
+...

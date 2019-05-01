@@ -1,0 +1,11 @@
+---
+- name: Install and Configure Apache
+  hosts: web
+  become: true
+  gather_facts: yes
+  vars_files:
+    - vars/vault.yml
+    - vars/mysql_php.yml
+  roles:
+    - homelab-apache
+...

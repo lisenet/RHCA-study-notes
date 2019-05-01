@@ -1,0 +1,38 @@
+---
+# tasks file for homelab-apache
+- name: Install packages
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ my_role_packages }}"
+
+- name: Enable "{{ my_role_service }}" service
+  service:
+    name: "{{ my_role_service }}"
+    enabled: yes
+    state: started
+
+- name: Open Firewall port for "{{ my_role_fwport }}"
+  firewalld:
+    immediate: yes
+    permanent: yes
+    state: enabled
+    port: "{{ my_role_fwport }}/tcp"
+
+- name: Deploy index.php
+  template:
+    src: index.php.j2
+    dest: /var/www/html/index.php
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy file.html
+  template:
+    src: file.html.j2
+    dest: /var/www/html/file.html
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart httpd
+

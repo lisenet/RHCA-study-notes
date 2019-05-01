@@ -1,0 +1,3 @@
+my_packages:
+  - firewalld
+  - mailx

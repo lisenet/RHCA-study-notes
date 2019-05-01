@@ -1,0 +1,45 @@
+---
+- name: Configure HAProxy from role
+  hosts: proxy
+  become: yes
+  gather_facts: yes
+  vars:
+    haproxy_backend_balance_method: 'roundrobin'
+    haproxy_backend_servers:
+      - name: web1
+        address: ansible3.hl.local:80
+      - name: web2
+        address: ansible4.hl.local:80
+  pre_tasks:
+    - debug: 
+        msg: "Beginning to configure HAProxy"
+  tasks:
+    - name: Install HAPRoxy
+      import_role:
+        name: geerlingguy.haproxy
+  post_tasks:
+    - debug: 
+        msg: "Finished configuring HAProxy, running tests"
+
+    - name: Test1 HAProxy
+      uri:
+        url: "http://{{ ansible_fqdn }}/file.html"
+        status_code: 200
+        return_content: yes
+      register: result1
+
+    - name: Print Content from Test1
+      debug:
+        msg: "{{ result1.content }}"
+
+    - name: Test2 HAProxy
+      uri:
+        url: "http://{{ ansible_fqdn }}/file.html"
+        status_code: 200
+        return_content: yes
+      register: result2
+
+    - name: Print Content from Test2
+      debug:
+        msg: "{{ result2.content }}"
+...
