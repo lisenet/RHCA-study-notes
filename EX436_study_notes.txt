@@ -140,7 +140,7 @@
 # pcs stonith create fence_all fence_xvm \
   key_file="/etc/cluster/fence_xvm.key" \
   action="reboot" \
-  pcmk_host_map="node1.hl.local:node1,node2.hl.local:node2,node3.hl.local:node3" \
+  pcmk_host_map="node1.hl.local:node1;node2.hl.local:node2;node3.hl.local:node3" \
   pcmk_host_list="node1,node2,node3" \
   pcmk_host_check="static-list"
 
