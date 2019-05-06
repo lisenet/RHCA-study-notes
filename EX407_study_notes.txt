@@ -600,6 +600,22 @@ $ ansible-galaxy list -p ~/.ansible/roles/
 
 $ ansible-galaxy init -r requirements.yml
 
+## The original way to use roles is via the roles: option for a play:
+
+---
+- hosts: webservers
+  roles:
+     - webservers
+
+## The order of execution for your playbook is as follows:
+
+1. Any pre_tasks defined in the play.
+2. Any handlers triggered so far will be run.
+3. Each role listed in roles will execute in turn (with dependencies).
+4. Any tasks defined in the play.
+5. Any handlers triggered so far will be run.
+6. Any post_tasks defined in the play.
+7. Any handlers triggered so far will be run.
 
 ## RHEL system roles:
 
