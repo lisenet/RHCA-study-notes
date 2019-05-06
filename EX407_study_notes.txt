@@ -806,3 +806,48 @@ when: inventory_hostname in groups["webservers"]
   any_errors_fatal: true
   roles:
     - database
+
+#---------------------------------------------------------------------
+
+## *** Ansible Keywords ***
+
+## These are some of the keywords available on common playbook objects.
+
+## Notable play keywords:
+
+any_errors_fatal
+become
+become_method
+become_user
+check_mode
+debugger
+force_handlers
+gather_facts
+handlers
+hosts
+ignore_errors
+name
+no_log
+order
+port
+post_tasks
+pre_tasks
+remote_user
+roles
+run_once
+serial
+tasks
+vars
+vars_files
+
+## Notable block keywords:
+
+always
+block
+rescue
+when
+
+## Notable task keywords:
+
+loop
+register
