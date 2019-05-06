@@ -743,3 +743,27 @@ when: inventory_hostname in groups["webservers"]
 
 ## The above will force a task to run in check mode, even when the
 ## playbook is called without --check.
+
+#---------------------------------------------------------------------
+
+## *** Ansible Playbook Debugger ***
+
+## Ansible includes a debugger as part of the strategy plugins.
+## This debugger enables you to debug as task.
+
+## The debugger keyword can be used on any block where you provide
+## a name attribute, such as a play, role, block or task.
+
+---
+- hosts: ansible2.hl.local
+  tasks:
+    - unarchive:
+        src: files/archive.tgz
+        dest: /tmp/
+        remote_src: no
+    - name: archive file
+      debugger: on_failed
+      archive:
+        path: /tmp/archive.html
+        dest: /tmp/file.gz
+        format: tgz
