@@ -876,3 +876,25 @@ register
         path: /tmp/file3
 
 ## It is a time saver when you need to use the same module repeatedly.
+
+#---------------------------------------------------------------------
+
+## *** Ansible Best Practices ***
+
+## Tips for making the most of Ansible and Ansible playbooks.
+
+1. Always mention the state. The "state" parameter is optional to a
+lot of modules. Whether "state=present" or "state=absent", it is always
+best to leave that parameter in your playbooks to make it clear.
+
+2. Generous use of whitespace to break things up, and use of comments,
+which start with "#", is encouraged.
+
+3. Always name tasks. It is recommended to provide a description about
+why something is being done!
+
+4. Keep it simple. Do not attemtp to use every feature of Ansible
+together, all at once. Use what works for you!
+
+5. Ansible best practice has no limit on the amount of variable and
+vault files or their names.
