@@ -767,3 +767,18 @@ when: inventory_hostname in groups["webservers"]
         path: /tmp/archive.html
         dest: /tmp/file.gz
         format: tgz
+
+#---------------------------------------------------------------------
+
+## *** Ansible Ignoring Failed Commands ***
+
+## Playbooks will stop executing any more steps on a host that has a
+## task fail. To ignore this behaviour, set ignore_errors to true:
+
+- name: this will not be counted as a failure
+  command: /bin/false
+  ignore_errors: yes
+
+## This is useful when you expect a task to fail. For example, you
+## are checking if Apache website is reachable. It may be unreachable,
+## but you don't want the play to fail because of that.
