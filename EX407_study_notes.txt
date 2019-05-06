@@ -773,7 +773,7 @@ when: inventory_hostname in groups["webservers"]
 ## *** Ansible Ignoring Failed Commands ***
 
 ## Playbooks will stop executing any more steps on a host that has a
-## task fail. To ignore this behaviour, set ignore_errors to true:
+## task fail. To ignore this behaviour, set "ignore_errors" to true:
 
 - name: this will not be counted as a failure
   command: /bin/false
@@ -782,3 +782,27 @@ when: inventory_hostname in groups["webservers"]
 ## This is useful when you expect a task to fail. For example, you
 ## are checking if Apache website is reachable. It may be unreachable,
 ## but you don't want the play to fail because of that.
+
+#---------------------------------------------------------------------
+
+## *** Ansible Run Once ***
+
+## There may be a need to only run a task one time for a batch of hosts:
+## This can be achieved by configuring "run_once" on a task:
+
+- command: /tmp/upgrade_database.sh
+  run_once: true
+
+#---------------------------------------------------------------------
+
+## *** Ansible Aborting the Play ***
+
+## There will be cases when you will need to abort the entire play on
+## failure, not just skip remaining tasks for a host, to avoid breaking
+## the system. The "any_errors_fatal" play option will mark all hosts
+## as failed if any fails, causing an immediate abort:
+
+- hosts: all
+  any_errors_fatal: true
+  roles:
+    - database
