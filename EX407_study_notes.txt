@@ -725,3 +725,21 @@ when: inventory_hostname in groups["webservers"]
         msg: 'This handler runs even on error'
 
 ## Note: meta is not really a module as such it cannot be overwritten.
+
+#---------------------------------------------------------------------
+
+## *** Ansible Check Mode (Dry Run) ***
+
+## When ansible-playbook is executed with --check it will not make any
+## changes on remote systems. To modify the check mode behavior of
+## individual tasks, you can use the check_mode option:
+
+- name: this task will run under checkmode and not change the system
+  lineinfile:
+    line: "PermitRootLogin no"
+    dest: /etc/ssh/sshd_config
+    state: present
+  check_mode: yes
+
+## The above will force a task to run in check mode, even when the
+## playbook is called without --check.
