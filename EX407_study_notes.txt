@@ -617,6 +617,9 @@ $ ansible-galaxy init -r requirements.yml
 6. Any post_tasks defined in the play.
 7. Any handlers triggered so far will be run.
 
+## Role dependencies are always executed before the role that includes
+## them, and may be recursive.
+
 ## RHEL system roles:
 
 $ sudo yum install rhel-system-roles
@@ -688,3 +691,37 @@ tasks:
 ## The groups variable is a list of all the groups in the inventory.
 
 when: inventory_hostname in groups["webservers"]
+
+#---------------------------------------------------------------------
+
+## *** meta - Execute Ansible actions ***
+
+## Meta tasks are a special kind of task which can influence Ansible
+## internal execution or state. Choices:
+
+* flush_handlers
+* refresh_inventory
+* noop
+* clear_facts
+* clear_host_errors
+* end_play
+* reset_connection
+
+## Example meta task for how to run handlers after an error occurred:
+
+ tasks:
+   - name: Attempt and graceful roll back demo
+     block:
+       - debug:
+           msg: 'I execute normally'
+         notify: run me even after an error
+       - command: /bin/false
+     rescue:
+       - name: make sure all handlers run
+         meta: flush_handlers
+ handlers:
+    - name: run me even after an error
+      debug:
+        msg: 'This handler runs even on error'
+
+## Note: meta is not really a module as such it cannot be overwritten.
