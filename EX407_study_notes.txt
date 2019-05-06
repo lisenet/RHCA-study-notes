@@ -851,3 +851,28 @@ when
 
 loop
 register
+
+#---------------------------------------------------------------------
+
+## *** Ansible Setting Defaults for Modules ***
+
+## It can be useful to define default arguments for a particular module
+## using the "module_defaults" attribute:
+
+- hosts: all
+  become: true
+  module_defaults:
+    file:
+      owner: root
+      group: devops
+      mode: "664"
+      state: touch
+  tasks:
+    - file:
+        path: /tmp/file1
+    - file:
+        path: /tmp/file2
+    - file:
+        path: /tmp/file3
+
+## It is a time saver when you need to use the same module repeatedly.
