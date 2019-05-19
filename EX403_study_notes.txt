@@ -125,7 +125,7 @@ https://www.lisenet.com/2018/homelab-project-with-kvm-katello-and-puppet/
 
 # yum -y localinstall \
   http://satellite.hl.local/pub/katello-ca-consumer-latest.noarch.rpm
-# subscription-manager register --org "Default_Organization"
+# subscription-manager register --org=Default_Organization
 
 ## Configure capsule as a content node using the satellite-installer
 ## command that was displayed previously in the output of the
