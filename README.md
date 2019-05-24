@@ -9,10 +9,10 @@ A repository to keep study notes and other useful info for RHCA exams.
 * EX436 - HA Clustering
 * EX405 - Puppet
 * EX407 - Ansible
+* EX403 - Satellite Deployment and Systems Management
 
 ## Topics in Progress
 
-* EX403 - Satellite Deployment and Systems Management
 
 ## Topics of Interest
 
