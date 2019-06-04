@@ -13,10 +13,10 @@ A repository to keep study notes and other useful info for RHCA exams.
 
 ## Topics in Progress
 
+* EX415 - Security
 
 ## Topics of Interest
 
-* EX415 - Security
 * EX342 - Diagnostics and Troubleshooting
 * EX442 - Performance Tuning
 * EX210 - OpenStack
