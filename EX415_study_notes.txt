@@ -1,0 +1,222 @@
+######################################################################
+## Tomas Nevar <tomas@lisenet.com>
+## Study notes for EX415 Security exam (RHEL 7)
+######################################################################
+
+#---------------------------------------------------------------------
+
+## Configure encrypted storage with LUKS and NBDE.
+
+## The cryptsetup luksFormat command reformats the target block device!
+
+# cryptsetup luksFormat /dev/sdb1
+# cryptsetup luksDump /dev/sdb1
+LUKS header information for /dev/sdb1
+
+Version:       	1
+Cipher name:   	aes
+Cipher mode:   	xts-plain64
+Hash spec:     	sha256
+Payload offset:	4096
+MK bits:       	256
+MK digest:     	79 20 6a de a7 14 c2 22 73 84 cc 05 02 86 24 04 85 05 4c f9 
+MK salt:       	3d 82 35 0b c4 45 8a 82 21 d7 76 29 99 c4 76 6f 
+               	90 02 68 f5 6e a0 85 a0 24 71 35 a5 11 ac 84 d6 
+MK iterations: 	43000
+UUID:          	efa0533d-a6a9-4203-8de7-7c6c6e846cbc
+
+Key Slot 0: ENABLED
+	Iterations:         	344548
+	Salt:               	8a 9c 00 6b 99 c2 0c 7f a1 35 cc d9 69 b6 4b 53 
+	                      	f9 66 59 0d 22 c4 b1 e8 0c 2a 0b e3 4a 80 28 df 
+	Key material offset:	8
+	AF stripes:            	4000
+Key Slot 1: DISABLED
+Key Slot 2: DISABLED
+Key Slot 3: DISABLED
+Key Slot 4: DISABLED
+Key Slot 5: DISABLED
+Key Slot 6: DISABLED
+Key Slot 7: DISABLED
+
+# cryptsetup isLuks -v /dev/sdb1
+Command successful.
+
+# cryptsetup luksOpen /dev/sdb1 crypto1
+# mkfs.xfs /dev/mapper/crypto1
+# mount /dev/mapper/crypto1 /mnt
+# echo test > /mnt/test.txt
+# umount /mnt
+# cryptsetup luksClose crypto1
+
+#---------------------------------------------------------------------
+
+## Network-bound Disk Encryption (NBDE) automates the decryption of
+## encrypted disks without manually entering any passphrase at boot time
+## in a secure way, by ensuring that certain criteria are met. 
+
+## NBDE uses two key components: the Clevis framework and the Tang server.
+
+# yum install tang
+# systemctl enable tangd.socket
+# systemctl start tangd.socket
+# firewall-cmd --permanent --add-service=http
+# firewall-cmd --reload
+
+## To rotate the signature and exchange keys used by a Tang server, use
+## jose toolkit. Tang server stores keys in the /var/db/tang directory.
+
+# jose
+Usage: jose COMMAND [OPTIONS] [ARGUMENTS]
+
+Commands:
+
+  jose alg      Lists all supported algorithms
+
+  jose fmt      Converts JSON between serialization formats
+
+  jose b64 dec  Decodes URL-safe Base64 data to binary
+  jose b64 enc  Encodes binary data to URL-safe Base64
+
+  jose jwe dec  Decrypts a JWE using the supplied JWKs and outputs plaintext
+  jose jwe enc  Encrypts plaintext using one or more JWKs and outputs a JWE
+  jose jwe fmt  Converts a JWE between serialization formats
+
+  jose jwk eql  Determines if two or more JWKs are equal
+  jose jwk exc  Performs a key exchange using the two input keys
+  jose jwk gen  Creates a random JWK for each input JWK template
+  jose jwk pub  Cleans private keys from a JWK
+  jose jwk thp  Calculates the JWK thumbprint
+  jose jwk use  Validates the permissions of a key for the specified use(s)
+
+  jose jws fmt  Converts a JWS between serialization formats
+  jose jws sig  Signs a payload using one or more JWKs and outputs a JWS
+  jose jws ver  Verifies a JWS using the supplied JWKs and outputs payload
+
+## See EXAMPLES section of the man page:
+
+# man jose-jwk-gen
+
+## Generate five keys, each targeting a different algorithm:
+
+# cd /var/db/tang
+# jose jwk gen -i '{"alg":"ES512"}' -o sig.jwk
+# jose jwk gen -i '{"alg":"ECMR"}'  -o exc.jwk
+# jose jwk gen -i '{"alg":"HS256"}' -o oct.jwk
+# jose jwk gen -i '{"alg":"RS256"}' -o rsa.jwk
+# jose jwk gen -i '{"alg":"ES256"}' -o ec.jwk
+
+## Tang immediately picks up all changes. No restart is required.
+## Note that you need to rename the old keys, adding a dot as a prefix
+## to the old key name.
+
+## To change Tang's port number, override the tangd.socket unit file:
+
+# grep Listen /usr/lib/systemd/system/tangd.socket
+ListenStream=8080
+
+#---------------------------------------------------------------------
+
+## Configure Clevis framework with LUKS support:
+
+# yum install clevis clevis-luks clevis-dracut
+
+# clevis
+Usage: clevis COMMAND [OPTIONS]
+
+  clevis decrypt      Decrypts using the policy defined at encryption time
+  clevis encrypt http Encrypts using a REST HTTP escrow server policy
+  clevis encrypt sss  Encrypts using a Shamir's Secret Sharing policy
+  clevis encrypt tang Encrypts using a Tang binding server policy
+  clevis luks bind    Binds a LUKSv1 device using the specified policy
+  clevis luks unlock  Unlocks a LUKSv1 volume
+
+# clevis luks bind --help
+Usage: clevis luks bind [-f] [-s SLT] [-k KEY] -d DEV PIN CFG
+
+Binds a LUKSv1 device using the specified policy:
+
+  -f      Do not prompt for LUKSMeta initialization
+
+  -d DEV  The LUKS device on which to perform binding
+
+  -s SLT  The LUKSMeta slot to use for metadata storage
+
+  -k KEY  Non-interactively read LUKS password from KEY file
+  -k -    Non-interactively read LUKS password from standard input
+
+
+# clevis luks bind -d /dev/sdb1 tang '{"url":"http://server4.hl.local"}'
+The advertisement contains the following signing keys:
+
+57t8_p7CVzcDY4IrkIzud7bVzvo
+
+Do you wish to trust these keys? [ynYN] y
+You are about to initialize a LUKS device for metadata storage.
+Attempting to initialize it may result in data loss if data was
+already written into the LUKS header gap in a different format.
+A backup is advised before initialization is performed.
+
+Do you wish to initialize /dev/sdb1? [yn] y
+Enter existing LUKS password: **********
+
+# luksmeta --help
+Usage: luksmeta test -d DEVICE
+   or: luksmeta nuke -d DEVICE [-f]
+   or: luksmeta init -d DEVICE [-f] [-n]
+   or: luksmeta show -d DEVICE [-s SLOT]
+   or: luksmeta save -d DEVICE [-s SLOT]  -u UUID  < DATA
+   or: luksmeta load -d DEVICE  -s SLOT  [-u UUID] > DATA
+   or: luksmeta wipe -d DEVICE  -s SLOT  [-u UUID] [-f]
+
+# luksmeta show -d /dev/sdb1 
+0   active empty
+1   active cb6e8904-81ff-40da-a84a-07ab9ab5715e
+2 inactive empty
+3 inactive empty
+4 inactive empty
+5 inactive empty
+6 inactive empty
+7 inactive empty
+
+
+## If the Tang server is not available, force the Clevis framework to
+## prompt for the LUKS passphrase during the boot process:
+
+# systemctl enable clevis-luks-askpass.path
+
+## Add an entry to crypttab:
+
+# vim /etc/crypttab
+crypto1  /dev/sdb1  none  _netdev
+
+## The third field specifies the absolute path to a file containing the
+## encryption password. It is set to none in our case, which has a
+## special meaning. Either the boot process will pause to prompt for
+## manual entry of the encryption password on the server's console, or
+## it will trigger block device decryption with NBDE. 
+
+# vim /etc/fstab
+/dev/mapper/crypto1  /mnt/crypto1  xfs  _netdev  1 2
+
+## The _netdev option is needed if we are using NBDE Tang servers as
+## a condition to decrypt the devices. This is because NBDE needs to use
+## the network to contact those servers, and so decryption cannot occur
+## until the network is available.
+
+## Restart the server, it should boot and mount the disk automatically:
+
+server4.hl.local systemd[1]: Started Tang Server (10.11.1.72:45308).
+server4.hl.local systemd[1]: Starting Tang Server (10.11.1.72:45308)...
+server4.hl.local tangd[11582]: 10.11.1.72 POST /rec/b5lGSJ221X772PUouPklDCPJ6Uk => 200 (src/tangd.c:168)
+
+## Deploy highly available systems with Shamir's Secret Sharing.
+## Clients should be configured with the ability to bind to multiple
+## Tang servers. Check the man page for a high-availability setup:
+
+# man clevis-encrypt-sss
+
+# Require two servers to be available for automatic decryption to occur:
+
+# cfg='{"t":2,"pins":{"tang":[{"url":"http://server3.hl.local"},{"url":"server4.hl.local"}]}}'
+# clevis luks bind -d /dev/sdb1 sss "$cfg"
