@@ -220,3 +220,135 @@ server4.hl.local tangd[11582]: 10.11.1.72 POST /rec/b5lGSJ221X772PUouPklDCPJ6Uk 
 
 # cfg='{"t":2,"pins":{"tang":[{"url":"http://server3.hl.local"},{"url":"server4.hl.local"}]}}'
 # clevis luks bind -d /dev/sdb1 sss "$cfg"
+
+#---------------------------------------------------------------------
+
+## Restrict USB devices.
+
+# yum install usbguard usbutils udisks2
+# systemctl enable usbguard
+
+# usbguard
+ Usage: usbguard [OPTIONS] <command> [COMMAND OPTIONS] ...
+
+ Options:
+
+ Commands:
+  get-parameter <name>           Get the value of a runtime parameter.
+  set-parameter <name> <value>   Set the value of a runtime parameter.
+  list-devices                   List all USB devices recognized by the USBGuard daemon.
+  allow-device <id>              Authorize a device to interact with the system.
+  block-device <id>              Deauthorize a device.
+  reject-device <id>             Deauthorize and remove a device from the system.
+
+  list-rules                     List the rule set (policy) used by the USBGuard daemon.
+  append-rule <rule>             Append a rule to the rule set.
+  remove-rule <id>               Remove a rule from the rule set.
+
+  generate-policy                Generate a rule set (policy) based on the connected USB devices.
+  watch                          Watch for IPC interface events and print them to stdout.
+  read-descriptor                Read a USB descriptor from a file and print it in human-readable form.
+
+  add-user <name>                Add USBGuard IPC user/group (requires root privilges)
+  remove-user <name>             Remove USBGuard IPC user/group (requires root privileges)
+
+
+## Create an initial rule set and restart the service:
+
+# usbguard generate-policy > /etc/usbguard/rules.conf
+# systemctl restart usbguard
+
+## List rules and devices:
+
+# usbguard list-rules|cut -d" " -f1-6
+1: allow id 1d6b:0001 serial "0000:00:01.2"
+2: allow id 0627:0001 serial "42"
+
+# usbguard list-devices|cut -d" " -f1-6
+3: allow id 1d6b:0001 serial "0000:00:01.2"
+4: allow id 0627:0001 serial "42"
+
+# lsusb
+Bus 001 Device 002: ID 0627:0001 Adomax Technology Co., Ltd
+Bus 001 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+
+## If a USB device is attached to the system after the default policy
+## is generated it is not authorised to access the system and is
+## assigned a block rule target.
+
+# usbguard list-devices|cut -d" " -f1-6
+3: allow id 1d6b:0002 serial "0000:00:1d.7"
+4: allow id 1d6b:0001 serial "0000:00:01.2"
+5: allow id 1d6b:0001 serial "0000:00:1d.0"
+6: allow id 1d6b:0001 serial "0000:00:1d.1"
+7: allow id 1d6b:0001 serial "0000:00:1d.2"
+8: allow id 0627:0001 serial "42"
+9: block id 0a5c:5800 serial "0123456789ABCD"
+
+## Dynamically authorise the USB device with device number 9:
+
+# usbguard allow-device 9
+
+## Use --permanent to make the change permanent:
+
+# usbguard allow-device --permanent 9
+
+# usbguard list-rules|cut -d" " -f1-6
+1: allow id 1d6b:0001 serial "0000:00:01.2"
+2: allow id 0627:0001 serial "42"
+3: allow id 0a5c:5800 serial "0123456789ABCD"
+
+## The usbguard daemon loads the usbguard-daemon.conf file, which it
+## uses to configure runtime parameters of the daemon. We have to edit
+## the usbguard-daemon.conf file to create a whitelist or blacklist.
+
+# grep -ve ^# -ve ^$ /etc/usbguard/usbguard-daemon.conf
+RuleFile=/etc/usbguard/rules.conf
+ImplicitPolicyTarget=block
+PresentDevicePolicy=apply-policy
+PresentControllerPolicy=keep
+InsertedDevicePolicy=apply-policy
+RestoreControllerDeviceState=false
+DeviceManagerBackend=uevent
+IPCAllowedUsers=root
+IPCAllowedGroups=
+IPCAccessControlFiles=/etc/usbguard/IPCAccessControl.d/
+DeviceRulesWithPort=false
+AuditBackend=FileAudit
+AuditFilePath=/var/log/usbguard/usbguard-audit.log
+
+## Man pages:
+
+# man usbguard             ;#(see EXAMPLES)
+# man usbguard-rules.conf  ;#(see Example Policies)
+# man usbguard-daemon.conf ;#(see IPC ACCESS CONTROL)
+
+# udisksctl help
+Usage:
+  udisksctl COMMAND
+
+Commands:
+  help            Shows this information
+  info            Shows information about an object
+  dump            Shows information about all objects
+  status          Shows high-level status
+  monitor         Monitor changes to objects
+  mount           Mount a filesystem
+  unmount         Unmount a filesystem
+  unlock          Unlock an encrypted device
+  lock            Lock an encrypted device
+  loop-setup      Set-up a loop device
+  loop-delete     Delete a loop device
+  power-off       Safely power off a drive
+  smart-simulate  Set SMART data for a drive
+
+Use "udisksctl COMMAND --help" to get help on each command.
+
+# udisksctl status
+MODEL                     REVISION  SERIAL               DEVICE
+----------------------------------------------------------------------
+QEMU QEMU HARDDISK        2.5+      drive-scsi0          sda
+QEMU QEMU HARDDISK        2.5+      drive-scsi1          sdb
+QEMU DVD-ROM              2.5+      QM00003              sr0
+
+#---------------------------------------------------------------------
