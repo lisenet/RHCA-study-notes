@@ -352,3 +352,39 @@ QEMU QEMU HARDDISK        2.5+      drive-scsi1          sdb
 QEMU DVD-ROM              2.5+      QM00003              sr0
 
 #---------------------------------------------------------------------
+
+## Configure intrusion detection with AIDE.
+
+# yum install aide
+
+## The selection lines specify the files and directories that AIDE
+## monitors, and the changes for which AIDE will watch. Selection lines
+## can be regular, equals or negative.
+
+# vim /etc/aide.conf
+[...]
+/etc/    PERMS
+=/home   DIR
+!/var/log/httpd/
+
+## Initialise the AIDE database and verify integrity:
+
+# aide --init
+# mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+# aide --check
+
+## Update the database after expected changes are made to the system:
+
+# aide --update
+
+## Configure AIDE daily scan:
+
+# crontab -e
+0 6 * * * root /usr/sbin/aide --check
+
+## Man pages:
+
+# man aide
+# man aide.conf
+
+#---------------------------------------------------------------------
