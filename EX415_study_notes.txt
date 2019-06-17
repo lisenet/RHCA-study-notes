@@ -388,3 +388,105 @@ QEMU DVD-ROM              2.5+      QM00003              sr0
 # man aide.conf
 
 #---------------------------------------------------------------------
+
+## Manage system login security using PAMs.
+
+## PAM manages both authentication and authorisation. PAM documentation:
+
+$ man -k pam_
+
+$ man pam_faildelay
+$ man pam_time      ;# (see /etc/security/time.conf)
+$ man pam_access    ;# (see /etc/security/access.conf)
+$ man pam_pwquality ;# (see /etc/security/pwquality.conf)
+$ man pam_sepermit  ;# (see /etc/security/sepermit.conf)
+$ man sepermit.conf
+$ man pam_faillock  ;# (does not a have a dedicated configuration file)
+
+$ man pam.conf
+
+## PAM rule types:
+
+auth - users must pass these rules to validate their identity.
+account - user account is valid and password has not expired.
+password - control password changes (nothing to do with authentication).
+session - manage tasks such as logging, device or console ownership.
+
+## Note: PAM rules are parsed and executed from top to bottom!
+## A dash (-) character in front of a type indicates to silently skip
+## the rule if the module file is missing.
+
+# cat /etc/pam.d/system-auth
+#%PAM-1.0
+# This file is auto-generated.
+# User changes will be destroyed the next time authconfig is run.
+auth        required      pam_env.so
+auth        required      pam_faildelay.so delay=2000000
+auth        sufficient    pam_unix.so nullok try_first_pass
+auth        requisite     pam_succeed_if.so uid >= 1000 quiet_success
+auth        required      pam_deny.so
+
+account     required      pam_unix.so
+account     sufficient    pam_localuser.so
+account     sufficient    pam_succeed_if.so uid < 1000 quiet
+account     required      pam_permit.so
+
+password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type=
+password    sufficient    pam_unix.so sha512 shadow nullok try_first_pass use_authtok
+password    required      pam_deny.so
+
+session     optional      pam_keyinit.so revoke
+session     required      pam_limits.so
+-session     optional      pam_systemd.so
+session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
+session     required      pam_unix.so
+
+## Common PAM controls:
+
+required - the associated module must succeed.
+requisite - similar to required but stops testing on error.
+sufficient - returns success immediately if the associated module succeeds.
+optional - ignore the result of the test, even if it fails.
+include - include the rules from the provided PAM configuration file.
+substack - works like include except that a failed test in the called
+           file gives back the control to the current file.
+
+## Use the authconfig tool to configure PAM whenever possible!
+## How to performan backup and restore:
+
+# authconfig --savebackup=/root/pam_backup
+# authconfig --restorebackup=/root/pam_backup
+
+## Note that authconfig modifies two files:
+
+/etc/pam.d/system-auth-ac
+/etc/pam.d/password-auth-ac
+
+## Most of the PAM service configuration files include the system-auth
+## and password-auth files. These two files are symbolic links to the
+## system-auth-ac and password-auth-ac files.
+
+# ls -l system-auth password-auth
+lrwxrwxrwx. 1 root root 16 Nov 12  2017 password-auth -> password-auth-ac
+lrwxrwxrwx. 1 root root 14 Nov 12  2017 system-auth -> system-auth-ac
+
+## When authconfig updates its *-ac files, the configuration changes
+## take effect immediately.
+
+## Prevent authconfig from overwriting local modifications:
+
+# cd /etc/pam.d
+# cp system-auth-ac system-auth-local
+# cp password-auth-ac password-auth-local
+# rm system-auth password-auth
+# ln -s system-auth-local system-auth
+# ln -s password-auth-local password-auth
+# ls -l system-auth password-auth
+lrwxrwxrwx. 1 root root 19 Jun 17 17:52 password-auth -> password-auth-local
+lrwxrwxrwx. 1 root root 17 Jun 17 17:52 system-auth -> system-auth-local
+
+## If you need to enable SSSD:
+
+# yum -y install sssd
+# authconfig --enablesssd --enablesssdauth --update
+# grep pam_sss /etc/pam.d/*
