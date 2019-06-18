@@ -490,3 +490,172 @@ lrwxrwxrwx. 1 root root 17 Jun 17 17:52 system-auth -> system-auth-local
 # yum -y install sssd
 # authconfig --enablesssd --enablesssdauth --update
 # grep pam_sss /etc/pam.d/*
+
+#---------------------------------------------------------------------
+
+## Configure system auditing.
+
+/etc/audit/auditd.conf - main auditd confiugration file.
+/etc/audit/audit.rules - the audit rules loaded by auditd.
+/etc/audit/rules.d - folder containing manually configured audit rules. 
+/var/log/audit/audit.log - the default log file used by auditd.
+
+## Documentation for auditd:
+
+$ man auditd
+$ man auditd.conf
+$ man audit.rules
+$ man audispd.conf
+$ man ausearch
+$ man aureport
+$ man autrace
+$ man auditctl
+
+# grep -ve ^# /etc/audit/auditd.conf|sort -n
+action_mail_acct = root
+admin_space_left = 50
+admin_space_left_action = SUSPEND
+disk_error_action = SUSPEND
+disk_full_action = SUSPEND
+dispatcher = /sbin/audispd
+disp_qos = lossy
+distribute_network = no
+enable_krb5 = no
+flush = INCREMENTAL_ASYNC
+freq = 50
+krb5_principal = auditd
+local_events = yes
+log_file = /var/log/audit/audit.log
+log_format = RAW
+log_group = root
+max_log_file = 8
+max_log_file_action = ROTATE
+name_format = NONE
+num_logs = 5
+priority_boost = 4
+space_left = 75
+space_left_action = SYSLOG
+tcp_client_max_idle = 0
+tcp_listen_queue = 5
+tcp_max_per_addr = 1
+use_libwrap = yes
+verify_email = yes
+write_logs = yes
+
+## Write rules to log auditable events. Note that the order of rules
+## is important. Audit rules work on first-match-wins basis.
+
+## There are three types of audit rules:
+
+1. File system rules (or watches) audit access to files and directories.
+2. System call rules audit execution of system calls made by processes
+communicating with the kernel to access system resources.
+3. Control rules configure the audit system itself.
+
+## The basic syntax of a file system rule is as follows:
+
+# auditctl -w file -p permissions -k key
+
+## The syntax of a system call rule is as follows:
+
+# auditctl -a <list>,<action> \
+ [-F <filter-expression>] \
+ [-C <compare-expression>] \
+ [-S <system-call>]
+
+## The man page of auditctl contains examples!
+
+## Remove all rules:
+
+# auditctl -D
+
+## Set the currently loaded rules to be immutable.
+
+# auditctl -e 2
+
+## Enable prepackaged rules.
+
+## These rules are available in the /usr/share/doc/audit-*/rules
+## directory as files with the suffix .rules.
+
+# ls -1 /usr/share/doc/audit-*/rules
+10-base-config.rules
+10-no-audit.rules
+11-loginuid.rules
+12-cont-fail.rules
+12-ignore-error.rules
+20-dont-audit.rules
+21-no32bit.rules
+22-ignore-chrony.rules
+23-ignore-filesystems.rules
+30-nispom.rules
+30-pci-dss-v31.rules
+30-stig.rules
+31-privileged.rules
+32-power-abuse.rules
+40-local.rules
+41-containers.rules
+42-injection.rules
+43-module-load.rules
+70-einval.rules
+71-networking.rules
+99-finalize.rules
+README-rules
+
+## To use one of these prepackaged rule sets, copy the .rules file to
+## the /etc/audit/rules.d directory, and run the "augenrules --load"
+## command to reload the Audit rules.
+
+## Make the configuration immutable by using a prepackaged rule, note
+## that a system reboot is required to change audit rules:
+
+# cat /usr/share/doc/audit-*/rules/99-finalize.rules
+-e 2
+
+## Produce audit reports.
+
+## The aureport utility allows you to generate summary and columnar
+## reports on the events recorded in Audit log files. Examples:
+
+# aureport --start yesterday 00:00:00 --end today 00:00:00
+# aureport -x --summary
+# aureport -u --failed --summary -i
+
+# aureport --help
+usage: aureport [options]
+	-a,--avc			Avc report
+	-au,--auth			Authentication report
+	--comm				Commands run report
+	-c,--config			Config change report
+	-cr,--crypto		Crypto report
+	-e,--event			Event report
+	-f,--file			File name report
+	--failed			only failed events in report
+	-h,--host			Remote Host name report
+	--help				help
+	-i,--interpret		Interpretive mode
+	-if,--input <Input File name>	use this file as input
+	--input-logs		Use the logs even if stdin is a pipe
+	--integrity			Integrity event report
+	-l,--login			Login report
+	-k,--key			Key report
+	-m,--mods			Modification to accounts report
+	-ma,--mac			Mandatory Access Control (MAC) report
+	-n,--anomaly		aNomaly report
+	-nc,--no-config		Don't include config events
+	--node <node name>	Only events from a specific node
+	-p,--pid			Pid report
+	-r,--response		Response to anomaly report
+	-s,--syscall		Syscall report
+	--success			only success events in report
+	--summary			sorted totals for main object in report
+	-t,--log			Log time range report
+	-te,--end [end date] [end time]	ending date & time for reports
+	-tm,--terminal		TerMinal name report
+	-ts,--start [start date] [start time]	starting data & time for reports
+	--tty				Report about tty keystrokes
+	-u,--user			User name report
+	-v,--version		Version
+	--virt				Virtualization report
+	-x,--executable		eXecutable name report
+	If no report is given, the summary report will be displayed
