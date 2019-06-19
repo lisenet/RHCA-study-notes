@@ -659,3 +659,113 @@ usage: aureport [options]
 	--virt				Virtualization report
 	-x,--executable		eXecutable name report
 	If no report is given, the summary report will be displayed
+
+#---------------------------------------------------------------------
+
+## Configure SELinux.
+
+## SELinux works in one of three modes: enforcing, permissive, disabled.
+
+# grep ^SELINUX /etc/selinux/config
+SELINUX=enforcing
+SELINUXTYPE=targeted
+
+# getenforce
+Enforcing
+
+# setenforce
+usage:  setenforce [ Enforcing | Permissive | 1 | 0 ]
+
+## The most powerful way of getting SELinux information is by using man
+## pages. On RHEL 7 SELinux man pages are not installed by default.
+## We can install them and update the manual page index caches.
+
+# yum provides *\sealert *\semanage *\sepolicy *\seinfo
+# yum install -y policycoreutils-python policycoreutils-devel \
+  setroubleshoot-server setools-console
+
+# sepolicy manpage -a -p /usr/share/man/man8
+# mandb
+
+## Use SELinux man pages:
+
+$ man -k _selinux | less
+$ man audit2allow
+$ man semanage
+$ man semanage-port
+$ man semanage-fcontext
+$ man semanage-user
+$ man seinfo
+$ man restorecon
+
+## Listing various SElinux information:
+
+# semanage fcontext -l
+# semanage port -l
+# semanage user -l
+# semanage login -l
+# semanage permissive -l
+# getsebool -a
+
+## SELinux usage examples.
+## Add file-context for everything under /mnt/block1:
+
+# semanage fcontext -a -t httpd_sys_content_t "/mnt/block1(/.*)?"
+# restorecon -Rv /mnt/block1
+
+## Allow Apache to listen on TCP port 8888:
+
+# semanage port -a -t http_port_t -p tcp 8888
+
+## Allow Apache to send emails (permanently):
+
+# setsebool -P httpd_can_sendmail=1
+
+## Interpret SELinux violations and determine remedial action:
+
+# grep denied /var/log/audit/audit.log
+# ausearch -m AVC -ts boot
+# sealert -a /var/log/audit/audit.log
+
+## Restrict user activity with SELinux user mappings.
+## At login time, SELinux maps Linux users to SELinux users.
+## Note: Linux users mapped to unconfined_u do not have additional
+## user-based SELinux restrictions! Do not use system_u for Linux users.
+
+## SELinux prevents Linux users mapped to user_u from becoming root by
+## using su or sudo:
+
+# useradd -Z user_u sandy
+
+## Linux users mapped to staff_u can use sudo but not su:
+
+# useradd -Z staff_u tomcat
+
+## SELinux allows Linux users mapped to sysadm_u to use su and sudo:
+
+# useradd -Z sysadm_u vincent
+
+## Note: by default users mapped to sysadm_u cannot use SSH to log in.
+## Set the ssh_sysadm_login boolean to on if you need to allow it.
+
+# setsebool -P ssh_sysadm_login on
+
+## Change the default mapping to map the Linux users to user_u:
+
+# semanage login -m -s user_u -r s0  __default__
+
+## We can restrict whether or not users can run executables in their
+## home directory or in /tmp:
+
+# getsebool -a|grep exec_content
+auditadm_exec_content --> on
+dbadm_exec_content --> on
+guest_exec_content --> on
+logadm_exec_content --> on
+secadm_exec_content --> on
+staff_exec_content --> on
+sysadm_exec_content --> on
+user_exec_content --> on
+xguest_exec_content --> on
+
+# setsebool -P user_exec_content off
