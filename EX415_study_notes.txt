@@ -3,6 +3,10 @@
 ## Study notes for EX415 Security exam (RHEL 7)
 ######################################################################
 
+## Check out my CentOS 7 Server Hardening Guide:
+
+https://www.lisenet.com/2017/centos-7-server-hardening-guide/
+
 #---------------------------------------------------------------------
 
 ## Configure encrypted storage with LUKS and NBDE.
@@ -402,6 +406,7 @@ $ man pam_pwquality ;# (see /etc/security/pwquality.conf)
 $ man pam_sepermit  ;# (see /etc/security/sepermit.conf)
 $ man sepermit.conf
 $ man pam_faillock  ;# (does not a have a dedicated configuration file)
+$ man pam_tty_audit
 
 $ man pam.conf
 
@@ -606,6 +611,10 @@ README-rules
 ## the /etc/audit/rules.d directory, and run the "augenrules --load"
 ## command to reload the Audit rules.
 
+# cp /usr/share/doc/audit-*/rules/30-stig.rules /etc/audit/rules.d/
+# augenrules --load
+# auditctl -l
+
 ## Make the configuration immutable by using a prepackaged rule, note
 ## that a system reboot is required to change audit rules:
 
@@ -620,6 +629,7 @@ README-rules
 # aureport --start yesterday 00:00:00 --end today 00:00:00
 # aureport -x --summary
 # aureport -u --failed --summary -i
+# aureport --tty
 
 # aureport --help
 usage: aureport [options]
@@ -659,6 +669,41 @@ usage: aureport [options]
 	--virt				Virtualization report
 	-x,--executable		eXecutable name report
 	If no report is given, the summary report will be displayed
+
+## Note: use the ausearch and aureport commands to analyse the audit log.
+## Use autrace, ausearch and aureport to find info and generate a report:
+
+# ausearch --start boot -m LOGIN --format csv
+
+# autrace /bin/ls /root
+Trace complete. You can locate the records with 'ausearch -i -p 1765'
+
+# ausearch -i -p 1765
+
+# ausearch -p 1765 --raw|aureport -i --file
+
+File Report
+===============================================
+# date time file syscall success exe auid event
+===============================================
+1. 23/06/19 15:01:44 /bin/ls execve yes /usr/bin/ls root 802
+2. 23/06/19 15:01:44 /etc/ld.so.preload access no /usr/bin/ls root 805
+3. 23/06/19 15:01:44 /etc/ld.so.cache open yes /usr/bin/ls root 806
+4. 23/06/19 15:01:44 /lib64/libselinux.so.1 open yes /usr/bin/ls root 810
+5. 23/06/19 15:01:44 /lib64/libcap.so.2 open yes /usr/bin/ls root 818
+6. 23/06/19 15:01:44 /lib64/libacl.so.1 open yes /usr/bin/ls root 825
+7. 23/06/19 15:01:44 /lib64/libc.so.6 open yes /usr/bin/ls root 833
+8. 23/06/19 15:01:44 /lib64/libpcre.so.1 open yes /usr/bin/ls root 841
+9. 23/06/19 15:01:44 /lib64/libdl.so.2 open yes /usr/bin/ls root 848
+10. 23/06/19 15:01:44 /lib64/libattr.so.1 open yes /usr/bin/ls root 856
+11. 23/06/19 15:01:44 /lib64/libpthread.so.0 open yes /usr/bin/ls root 863
+12. 23/06/19 15:01:44 /sys/fs/selinux statfs yes /usr/bin/ls root 891
+13. 23/06/19 15:01:44 /sys/fs/selinux statfs yes /usr/bin/ls root 892
+14. 23/06/19 15:01:44 /sys/fs/selinux stat yes /usr/bin/ls root 893
+15. 23/06/19 15:01:44 /etc/selinux/config access yes /usr/bin/ls root 896
+16. 23/06/19 15:01:44 /usr/lib/locale/locale-archive open yes /usr/bin/ls root 897
+17. 23/06/19 15:01:44 /root stat yes /usr/bin/ls root 903
+18. 23/06/19 15:01:44 /root openat yes /usr/bin/ls root 904
 
 #---------------------------------------------------------------------
 
@@ -707,6 +752,39 @@ $ man restorecon
 # semanage permissive -l
 # getsebool -a
 
+## Display the table that SELinux uses for this mapping:
+
+# semanage login -l
+Login Name           SELinux User         MLS/MCS Range        Service
+
+__default__          unconfined_u         s0                   *
+root                 unconfined_u         s0-s0:c0.c1023       *
+sandy                user_u               s0                   *
+system_u             system_u             s0-s0:c0.c1023       *
+tomcat               staff_u              s0-s0:c0.c1023       *
+vince                staff_u              s0-s0:c0.c1023       *
+
+## Confined SELinux users:
+
+unconfined_u - do not have additional user-based SELinux restrictions.
+user_u   - non administrative users, no "su" or "sudo" is allowed.
+staff_u  - regular users, can use "sudo" but not "su".
+sysadm_u - system admin users, "su" and "sudo" are allowed.
+system_u - user for system services. Do not use it for Linux users.
+
+## Note that Linux users are mapped to the SELinux user unconfined_u.
+## To modify the default mapping to user_u: (see man semanage-login):
+
+# semanage login -m -s user_u -r s0 __default__
+
+## Map an existing Linux user to an SELinux user:
+
+# semanage login -a -s sysadm_u vince
+
+## Remove the mapping:
+
+# semanage login -d -s sysadm_u vince
+
 ## SELinux usage examples.
 ## Add file-context for everything under /mnt/block1:
 
@@ -724,7 +802,7 @@ $ man restorecon
 ## Interpret SELinux violations and determine remedial action:
 
 # grep denied /var/log/audit/audit.log
-# ausearch -m AVC -ts boot
+# ausearch --start boot -m AVC
 # sealert -a /var/log/audit/audit.log
 
 ## Restrict user activity with SELinux user mappings.
@@ -750,10 +828,6 @@ $ man restorecon
 
 # setsebool -P ssh_sysadm_login on
 
-## Change the default mapping to map the Linux users to user_u:
-
-# semanage login -m -s user_u -r s0  __default__
-
 ## We can restrict whether or not users can run executables in their
 ## home directory or in /tmp:
 
@@ -768,4 +842,95 @@ sysadm_exec_content --> on
 user_exec_content --> on
 xguest_exec_content --> on
 
+## To prevent users from executing programs in their home directories
+## and /tmp, set boolean user_exec_content to off:
+
 # setsebool -P user_exec_content off
+
+## IMPORTANT: SELinux allows staff_u users to change role to sysadm_r:
+
+# semanage user -l
+
+                Labelling  MLS/       MLS/
+SELinux User    Prefix     MCS Level  MCS Range          SELinux Roles
+
+guest_u         user       s0         s0                 guest_r
+root            user       s0         s0-s0:c0.c1023     staff_r sysadm_r system_r unconfined_r
+staff_u         user       s0         s0-s0:c0.c1023     staff_r sysadm_r system_r unconfined_r
+sysadm_u        user       s0         s0-s0:c0.c1023     sysadm_r
+system_u        user       s0         s0-s0:c0.c1023     system_r unconfined_r
+unconfined_u    user       s0         s0-s0:c0.c1023     system_r unconfined_r
+user_u          user       s0         s0                 user_r
+xguest_u        user       s0         s0                 xguest_r
+
+## This comes in handy when a user needs to run commands with sudo. In
+## such case the user needs to change his current role to sysadm_r:
+
+# cat /etc/sudoers.d/users
+vince  ALL= ROLE=sysadm_r /bin/systemctl restart httpd
+
+#---------------------------------------------------------------------
+
+## Enforce security compliance with OpenSCAP and Workbench.
+
+## Install the SCAP Security Guide:
+
+# yum install scap-security-guide
+
+## The scap-security-guide package installs predefined profiles in the
+## /usr/share/xml/scap/ssg/content/ directory.
+
+## SCAP Workbench is a graphical tool that allows you to perform
+## configuration scans. Install SCAP Workbench:
+
+# yum install scap-workbench
+
+## Install the openscap-scanner package, which contains the oscap
+## command-line utility:
+
+# yum install openscap-scanner
+
+# oscap -h
+oscap
+
+OpenSCAP command-line tool
+
+Usage: oscap [options] module operation [operation-options-and-arguments]
+
+oscap options:
+   -h --help    		 - show this help
+   -q --quiet   		 - quiet mode
+   -V --version 		 - print info about supported SCAP versions
+
+Commands:
+    ds  			 - DataStream utilities
+    oval			 - Open Vulnerability and Assessment Language
+    xccdf       	 - eXtensible Configuration Checklist Description Format
+    cvss			 - Common Vulnerability Scoring System
+    cpe 			 - Common Platform Enumeration
+    cve 			 - Common Vulnerabilities and Exposures
+    cvrf			 - Common Vulnerability Reporting Framework
+    info			 - info module
+
+## Note: the oscap generate fix command can be used to generate an
+## Ansible Playbook from a profile or a scan result XML file, which can
+## then be used to apply remediations.
+
+## Use Red Hat Satellite 6 server to implement an OpenSCAP policy.
+
+## Note: Red Hat Satellite does not have an interface to create or edit
+## tailoring files. You should create the tailoring file in SCAP
+## Workbench and then upload it to the Satellite Server.
+
+## Create default SCAP content:
+
+# foreman-rake foreman_openscap:bulk_upload:default
+
+## List the SCAP contents on Red Hat Satellite 6:
+
+# hammer scap-content list
+
+## Use Red Hat Insights to scan hosts for security compliance.
+
+# insights-client --register
+$ man insights-client
