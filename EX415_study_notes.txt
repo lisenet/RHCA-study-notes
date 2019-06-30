@@ -869,6 +869,84 @@ xguest_u        user       s0         s0                 xguest_r
 # cat /etc/sudoers.d/users
 vince  ALL= ROLE=sysadm_r /bin/systemctl restart httpd
 
+
+## Audit the SELinux policy.
+## Retrieve the SELinux domain type of the systemd daemon:
+
+# ps -Z -C systemd
+LABEL                             PID TTY          TIME CMD
+system_u:system_r:init_t:s0         1 ?        00:00:03 systemd
+
+## Retrieve the SELinux context type of the vsftpd executable:
+
+# which vsftpd | xargs ls -Z
+-rwxr-xr-x. root root system_u:object_r:ftpd_exec_t:s0 /usr/sbin/vsftpd
+
+## Retrieve the SELinux domain transition rule for when a daemon of type
+## init_t executes a program of type ftpd_exec_t:
+
+# sesearch -T -s init_t -t ftpd_exec_t
+Found 1 semantic te rules:
+   type_transition init_t ftpd_exec_t : process ftpd_t;
+
+
+## Retrieve the SELinux domain type of the vsftpd daemon:
+
+# ps -Z -C vsftpd
+LABEL                             PID TTY          TIME CMD
+system_u:system_r:ftpd_t:s0-s0:c0.c1023 3394 ? 00:00:00 vsftpd
+
+# touch /var/ftp/pub/test && ls -Z /var/ftp/pub/test
+-rw-r--r--. root root unconfined_u:object_r:public_content_t:s0 /var/ftp/pub/test
+
+## Retrieve the rule that allows the ftpd_t domain type to read files
+## with the public_content_t type:
+
+# sesearch -A -s ftpd_t -t public_content_t -c file
+Found 2 semantic av rules:
+   allow ftpd_t public_content_t : file { ioctl read getattr lock open } ;
+   allow ftpd_t non_security_file_type : file { ioctl read write create getattr setattr lock append unlink link rename open } ;
+
+## More info:
+
+# sesearch --help
+Usage: sesearch [OPTIONS] RULE_TYPE [RULE_TYPE ...] [EXPESSION] [POLICY ...]
+
+Search the rules in a SELinux policy.
+
+RULE_TYPES:
+  -A, --allow               allow rules
+  --neverallow              neverallow rules
+  --auditallow              auditallow rules
+  -D, --dontaudit           dontaudit rules
+  -T, --type                type_trans, type_member, and type_change
+  --role_allow              role allow rules
+  --role_trans              role_transition rules
+  --range_trans             range_transition rules
+  --all                     all rules regardless of type, class, or perms
+EXPRESSIONS:
+  -s NAME, --source=NAME    rules with type/attribute NAME as source
+  -t NAME, --target=NAME    rules with type/attribute NAME as target
+  --role_source=NAME        rules with role NAME as source
+  --role_target=NAME        rules with role NAME as target
+  -c NAME, --class=NAME     rules with class NAME as the object class
+  -p P1[,P2,...], --perm=P1[,P2...]
+                            rules with the specified permission
+  -b NAME, --bool=NAME      conditional rules with NAME in the expression
+OPTIONS:
+  -d, --direct              do not search for type's attributes
+  -R, --regex               use regular expression matching
+  -n, --linenum             show line number for each rule if available
+  -S, --semantic            search rules semantically instead of syntactically
+  -C, --show_cond           show conditional expression for conditional rules
+  -h, --help                print this help text and exit
+  -V, --version             print version information and exit
+
+If no expression is specified, then all rules are shown.
+
+The default source policy, or if that is unavailable the default binary
+policy, will be opened if no policy is provided.
+
 #---------------------------------------------------------------------
 
 ## Enforce security compliance with OpenSCAP and Workbench.
@@ -912,9 +990,40 @@ Commands:
     cvrf			 - Common Vulnerability Reporting Framework
     info			 - info module
 
+## Generate the HTML security guide for the Standard System Security
+## profile:
+
+# oscap xccdf generate guide \
+  --profile xccdf_org.ssgproject.content_profile_standard \
+  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml > guide.html
+
+## Run the oscap xccdf eval command to scan the system:
+
+# oscap xccdf eval \
+  --profile xccdf_org.ssgproject.content_profile_standard \
+  --results /root/scan-results.xml \
+  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml
+
+## After the scan is complete, use the resulting XML file to generate
+## a complete report in HTML format:
+
+## oscap xccdf generate report scan-results.xml > human-readable.html
+
 ## Note: the oscap generate fix command can be used to generate an
 ## Ansible Playbook from a profile or a scan result XML file, which can
 ## then be used to apply remediations.
+
+## Creating an Ansible playbook for a profile:
+
+# oscap xccdf generate fix \
+  --profile xccdf_org.ssgproject.content_profile_standard \
+  --fix-type ansible \
+  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml > remediate.yml
+
+## Note: always review the playbook before using it. Also, you can pick
+## tasks from the playbook (e.g. the ones tagged high_severity):
+
+# ansible-playbook --tags=high_severity remediate.yml
 
 ## Use Red Hat Satellite 6 server to implement an OpenSCAP policy.
 
@@ -922,7 +1031,7 @@ Commands:
 ## tailoring files. You should create the tailoring file in SCAP
 ## Workbench and then upload it to the Satellite Server.
 
-## Create default SCAP content:
+## Create default SCAP content on Satellite:
 
 # foreman-rake foreman_openscap:bulk_upload:default
 
