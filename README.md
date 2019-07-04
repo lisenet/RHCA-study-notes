@@ -10,10 +10,9 @@ A repository to keep study notes and other useful info for RHCA exams.
 * EX405 - Puppet
 * EX407 - Ansible
 * EX403 - Satellite Deployment and Systems Management
+* EX415 - Security
 
 ## Topics in Progress
-
-* EX415 - Security
 
 ## Topics of Interest
 
