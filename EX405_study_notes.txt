@@ -3,6 +3,31 @@
 ## Study notes for EX405 Configuration Management with Puppet (RHEL7)
 ######################################################################
 
+## Exam objectives:
+
+* Install and configure Puppet.
+  - Install Puppet servers.
+  - Install Puppet nodes.
+  - Register Puppet nodes to a Puppet server.
+* Create and maintain Puppet manifests.
+  - Create new Puppet manifests.
+  - Debug existing Puppet manifests.
+* Create Puppet modules.
+  - Create reusable modules.
+  - Create modules with classes, name spaces, variables, and conditionals.
+  - Create modules that install software on target nodes and deploy configuration files.
+* Use facter to obtain system information.
+  - Create custom facts.
+  - Use facts to change Puppet behavior.
+* Create Git repositories.
+  - Create and perform simple management of a Git repository.
+  - Add files to a Git repository.
+  - Apply changes and commit changed files to a Git repository.
+* Implement Puppet in a Red Hat Satellite 6 environment.
+  - Create a Puppet repository on Red Hat Satellite.
+  - Install, configure, and deploy Puppet modules using Red Hat Satellite.
+  - Register Puppet clients to a Red Hat Satellite server.
+
 ## A Puppet run starts with the Puppet agent gathering facts on the 
 ## Puppet node. The facts are sent over HTTPS to the Puppet master. 
 ## The Puppet master compiles a catalog and sends the catalog back 
