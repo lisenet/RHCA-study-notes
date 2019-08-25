@@ -14,6 +14,8 @@ A repository to keep study notes and other useful info for RHCA exams.
 
 ## Topics in Progress
 
+* DO180 - Intro to containers, Kubernetes, and Red Hat OpenShift
+
 ## Topics of Interest
 
 * EX342 - Diagnostics and Troubleshooting
