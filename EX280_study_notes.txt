@@ -39,3 +39,102 @@
   - Scale applications to meet increased demand.
   - Control pod placement across cluster nodes.
 
+#---------------------------------------------------------------------
+
+## *** Minishift Installation ***
+
+$ wget https://github.com/minishift/minishift/releases/download/v1.34.1/minishift-1.34.1-linux-amd64.tgz
+$ tar xf minishift-1.34.1-linux-amd64.tgz
+$ export MINISHIFT_HOME=/mnt/images/minishift
+$ minishift config set vm-driver virtualbox
+$ minishift config set disk-size 32G
+$ minishift config set memory 4096
+$ minishift config set openshift-version v3.11.0
+$ minishift config view
+$ minishift start
+$ oc login -u system:admin
+
+$ minishift -h
+Minishift is a command-line tool that provisions and manages single-node OpenShift clusters optimized for development workflows.
+
+Usage:
+  minishift [command]
+
+Available Commands:
+  addons      Manages Minishift add-ons.
+  completion  Outputs minishift shell completion for the given shell (bash or zsh)
+  config      Modifies Minishift configuration properties.
+  console     Opens or displays the OpenShift Web Console URL.
+  delete      Deletes the Minishift VM.
+  docker-env  Sets Docker environment variables.
+  help        Help about any command
+  hostfolder  Manages host folders for the Minishift VM.
+  image       Exports and imports container images.
+  ip          Gets the IP address of the running cluster.
+  logs        Gets the logs of the running OpenShift cluster.
+  oc-env      Sets the path of the 'oc' binary.
+  openshift   Interacts with your local OpenShift cluster.
+  profile     Manages Minishift profiles.
+  services    Manage Minishift services
+  setup       Configures pre-requisites for Minishift on the host machine
+  ssh         Log in to or run a command on a Minishift VM with SSH.
+  start       Starts a local OpenShift cluster.
+  status      Gets the status of the local OpenShift cluster.
+  stop        Stops the running local OpenShift cluster.
+  update      Updates Minishift to the latest version.
+  version     Gets the version of Minishift.
+
+Flags:
+      --alsologtostderr                  log to standard error as well as files
+  -h, --help                             help for minishift
+      --log_backtrace_at traceLocation   when logging hits line file:N, emit a stack trace (default :0)
+      --log_dir string                   If non-empty, write log files in this directory (default "")
+      --logtostderr                      log to standard error instead of files
+      --profile string                   Profile name (default "minishift")
+      --show-libmachine-logs             Show logs from libmachine.
+      --stderrthreshold severity         logs at or above this threshold go to stderr (default 2)
+  -v, --v Level                          log level for V logs. Level varies from 1 to 5 (default 1).
+      --vmodule moduleSpec               comma-separated list of pattern=N settings for file-filtered logging
+
+Use "minishift [command] --help" for more information about a command.
+
+
+#---------------------------------------------------------------------
+
+## *** OpenShift ***
+
+## Installation:
+
+$ sudo yum install atomic-openshift-utils
+$ ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/prerequisites.yml
+$ ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/deplpoy_cluster.yml
+
+## Post-installation:
+
+$ oc login -u admin -p redhat --insecure-skip-tls-verify=true
+$ oc get nodes --show labels
+$ ssh master.lab.example.com
+$ sudo -i
+$ oc adm policy add-cluster-role-to-user cluster-admin admin
+
+## Manage an OpenShift Instance Using oc:
+
+$ oc login -u admin -p redhat https://master.lab.example.com
+$ oc get projects
+$ oc project default
+$ oc get nodes
+$ oc describe master master.lab.example.com
+$ oc get pods -o wide
+$ oc describe pod docker-registry-1-klmn4
+$ oc exec pod docker-registry-1-klmn4 uptime
+$ oc rsh pod docker-registry-1-klmn4
+$ oc status -v
+$ oc get events
+$ oc get all
+$ oc export pod docker-registry-1-klmn4 -o json
+$ oc export svc,dc docker-registry --as-template=docker-registry
+$ oc export --help ;# see Example section
+
+## Deploy an app:
+
+$ oc new-app --name=hello -i php:7.0 http://services.lab.example.com/php-helloworld
