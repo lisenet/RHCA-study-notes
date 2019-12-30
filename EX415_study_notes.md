@@ -46,7 +46,7 @@ Check out my CentOS 7 Server Hardening Guide:
 
 https://www.lisenet.com/2017/centos-7-server-hardening-guide/
 
-## Configure Encrypted Storage with LUKS and NBDE
+## 1. Configure Encrypted Storage with LUKS and NBDE
 The `cryptsetup luksFormat` command reformats the target block device!
 ```
 # cryptsetup luksFormat /dev/sdb1
@@ -252,7 +252,7 @@ Require two servers to be available for automatic decryption to occur:
 # cfg='{"t":2,"pins":{"tang":[{"url":"http://server3.hl.local"},{"url":"server4.hl.local"}]}}'
 # clevis luks bind -d /dev/sdb1 sss "$cfg"
 ```
-## Restrict USB Devices
+## 2. Restrict USB Devices
 ```
 # yum install usbguard usbutils udisks2
 # systemctl enable usbguard
@@ -380,7 +380,7 @@ QEMU QEMU HARDDISK        2.5+      drive-scsi0          sda
 QEMU QEMU HARDDISK        2.5+      drive-scsi1          sdb
 QEMU DVD-ROM              2.5+      QM00003              sr0
 ```
-## Configure Intrusion Detection with AIDE
+## 3. Configure Intrusion Detection with AIDE
 ```
 # yum install aide
 ```
@@ -412,7 +412,7 @@ Man pages:
 # man aide
 # man aide.conf
 ```
-## Manage System Login Security using PAMs
+## 4. Manage System Login Security Using PAMs
 PAM manages both authentication and authorisation. PAM documentation:
 ```
 $ man -k pam_
@@ -510,7 +510,7 @@ If you need to enable SSSD:
 # grep pam_sss /etc/pam.d/*
 ```
 
-## Configure System Auditing
+## 5. Configure System Auditing
 
 * `/etc/audit/auditd.conf` - main auditd confiugration file.
 * `/etc/audit/audit.rules` - the audit rules loaded by auditd.
@@ -715,7 +715,7 @@ File Report
 17. 23/06/19 15:01:44 /root stat yes /usr/bin/ls root 903
 18. 23/06/19 15:01:44 /root openat yes /usr/bin/ls root 904
 ```
-## Configure SELinux
+## 6. Configure SELinux
 
 SELinux works in one of three modes: enforcing, permissive, disabled.
 ```
@@ -944,7 +944,7 @@ The default source policy, or if that is unavailable the default binary
 policy, will be opened if no policy is provided.
 ```
 
-## Enforce Security Compliance with OpenSCAP and Workbench
+## 7. Enforce Security Compliance with OpenSCAP and Workbench
 
 Install the SCAP Security Guide:
 ```
