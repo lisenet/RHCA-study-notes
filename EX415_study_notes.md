@@ -1,0 +1,1032 @@
+# Study notes for EX415 Security exam (RHEL 7)
+_by Tomas Nevar (tomas@lisenet.com)_
+
+## Exam objectives:
+
+* Use Red Hat Ansible® Engine
+  - Install Red Hat Ansible Engine on a control node.
+  - Configure managed nodes.
+  - Configure simple inventories.
+  - Perform basic management of systems.
+  - Run a provided playbook against specified nodes.
+* Configure intrusion detection
+  - Install AIDE.
+  - Configure AIDE to monitor critical system files.
+* Configure encrypted storage
+  - Encrypt and decrypt block devices using LUKS.
+  - Configure encrypted storage persistence using NBDE.
+  - Change encrypted storage passphrases.
+* Restrict USB devices
+  - Install USBGuard.
+  - Write device policy rules with specific criteria to manage devices.
+  - Manage administrative policy and daemon configuration.
+* Manage system login security using pluggable authentication modules (PAMs)
+  - Configure password quality requirements.
+  - Configure failed login policy.
+  - Modify PAM configuration files and parameters.
+* Configure system auditing
+  - Write rules to log auditable events.
+  - Enable prepackaged rules.
+  - Produce audit reports.
+* Configure SELinux
+  - Enable SELinux on a host running a simple application.
+  - Interpret SELinux violations and determine remedial action.
+  - Restrict user activity with SELinux user mappings.
+  - Analyse and correct existing SELinux configurations.
+* Enforce security compliance
+  - Install OpenSCAP and Workbench.
+  - Use OpenSCAP and Red Hat Insights to scan hosts for security compliance.
+  - Use OpenSCAP Workbench to tailor policy.
+  - Use OpenSCAP Workbench to scan an individual host for security compliance.
+  - Use Red Hat Satellite server to implement an OpenSCAP policy.
+  - Apply OpenSCAP remediation scripts to hosts.
+
+## CentOS 7 Server Hardening Guide
+Check out my CentOS 7 Server Hardening Guide:
+
+https://www.lisenet.com/2017/centos-7-server-hardening-guide/
+
+## Configure Encrypted Storage with LUKS and NBDE
+The `cryptsetup luksFormat` command reformats the target block device!
+```
+# cryptsetup luksFormat /dev/sdb1
+# cryptsetup luksDump /dev/sdb1
+LUKS header information for /dev/sdb1
+
+Version:       	1
+Cipher name:   	aes
+Cipher mode:   	xts-plain64
+Hash spec:     	sha256
+Payload offset:	4096
+MK bits:       	256
+MK digest:     	79 20 6a de a7 14 c2 22 73 84 cc 05 02 86 24 04 85 05 4c f9 
+MK salt:       	3d 82 35 0b c4 45 8a 82 21 d7 76 29 99 c4 76 6f 
+               	90 02 68 f5 6e a0 85 a0 24 71 35 a5 11 ac 84 d6 
+MK iterations: 	43000
+UUID:          	efa0533d-a6a9-4203-8de7-7c6c6e846cbc
+
+Key Slot 0: ENABLED
+	Iterations:         	344548
+	Salt:               	8a 9c 00 6b 99 c2 0c 7f a1 35 cc d9 69 b6 4b 53 
+	                      	f9 66 59 0d 22 c4 b1 e8 0c 2a 0b e3 4a 80 28 df 
+	Key material offset:	8
+	AF stripes:            	4000
+Key Slot 1: DISABLED
+Key Slot 2: DISABLED
+Key Slot 3: DISABLED
+Key Slot 4: DISABLED
+Key Slot 5: DISABLED
+Key Slot 6: DISABLED
+Key Slot 7: DISABLED
+```
+
+```
+# cryptsetup isLuks -v /dev/sdb1
+Command successful.
+```
+
+```
+# cryptsetup luksOpen /dev/sdb1 crypto1
+# mkfs.xfs /dev/mapper/crypto1
+# mount /dev/mapper/crypto1 /mnt
+# echo test > /mnt/test.txt
+# umount /mnt
+# cryptsetup luksClose crypto1
+```
+Network-bound Disk Encryption (NBDE) automates the decryption of encrypted disks without manually entering any passphrase at boot time in a secure way, by ensuring that certain criteria are met.
+
+### Tang Server
+NBDE uses two key components: the Clevis framework and the Tang server.
+```
+# yum install tang
+# systemctl enable tangd.socket
+# systemctl start tangd.socket
+# firewall-cmd --permanent --add-service=http
+# firewall-cmd --reload
+```
+To rotate the signature and exchange keys used by a Tang server, use `jose` toolkit. Tang server stores keys in the `/var/db/tang` directory.
+```
+# jose
+Usage: jose COMMAND [OPTIONS] [ARGUMENTS]
+
+Commands:
+
+  jose alg      Lists all supported algorithms
+
+  jose fmt      Converts JSON between serialization formats
+
+  jose b64 dec  Decodes URL-safe Base64 data to binary
+  jose b64 enc  Encodes binary data to URL-safe Base64
+
+  jose jwe dec  Decrypts a JWE using the supplied JWKs and outputs plaintext
+  jose jwe enc  Encrypts plaintext using one or more JWKs and outputs a JWE
+  jose jwe fmt  Converts a JWE between serialization formats
+
+  jose jwk eql  Determines if two or more JWKs are equal
+  jose jwk exc  Performs a key exchange using the two input keys
+  jose jwk gen  Creates a random JWK for each input JWK template
+  jose jwk pub  Cleans private keys from a JWK
+  jose jwk thp  Calculates the JWK thumbprint
+  jose jwk use  Validates the permissions of a key for the specified use(s)
+
+  jose jws fmt  Converts a JWS between serialization formats
+  jose jws sig  Signs a payload using one or more JWKs and outputs a JWS
+  jose jws ver  Verifies a JWS using the supplied JWKs and outputs payload
+```
+See EXAMPLES section of the man page:
+```
+# man jose-jwk-gen
+```
+Generate five keys, each targeting a different algorithm:
+```
+# cd /var/db/tang
+# jose jwk gen -i '{"alg":"ES512"}' -o sig.jwk
+# jose jwk gen -i '{"alg":"ECMR"}'  -o exc.jwk
+# jose jwk gen -i '{"alg":"HS256"}' -o oct.jwk
+# jose jwk gen -i '{"alg":"RS256"}' -o rsa.jwk
+# jose jwk gen -i '{"alg":"ES256"}' -o ec.jwk
+```
+Tang immediately picks up all changes. No restart is required. Note that you need to rename the old keys, adding a dot as a prefix to the old key name.
+
+To change Tang's port number, override the `tangd.socket` unit file:
+```
+# grep Listen /usr/lib/systemd/system/tangd.socket
+ListenStream=8080
+```
+### Clevis
+Configure Clevis framework with LUKS support:
+```
+# yum install clevis clevis-luks clevis-dracut
+```
+```
+# clevis
+Usage: clevis COMMAND [OPTIONS]
+
+  clevis decrypt      Decrypts using the policy defined at encryption time
+  clevis encrypt http Encrypts using a REST HTTP escrow server policy
+  clevis encrypt sss  Encrypts using a Shamir's Secret Sharing policy
+  clevis encrypt tang Encrypts using a Tang binding server policy
+  clevis luks bind    Binds a LUKSv1 device using the specified policy
+  clevis luks unlock  Unlocks a LUKSv1 volume
+```
+```
+# clevis luks bind --help
+Usage: clevis luks bind [-f] [-s SLT] [-k KEY] -d DEV PIN CFG
+
+Binds a LUKSv1 device using the specified policy:
+
+  -f      Do not prompt for LUKSMeta initialization
+
+  -d DEV  The LUKS device on which to perform binding
+
+  -s SLT  The LUKSMeta slot to use for metadata storage
+
+  -k KEY  Non-interactively read LUKS password from KEY file
+  -k -    Non-interactively read LUKS password from standard input
+```
+```
+# clevis luks bind -d /dev/sdb1 tang '{"url":"http://server4.hl.local"}'
+The advertisement contains the following signing keys:
+
+57t8_p7CVzcDY4IrkIzud7bVzvo
+
+Do you wish to trust these keys? [ynYN] y
+You are about to initialize a LUKS device for metadata storage.
+Attempting to initialize it may result in data loss if data was
+already written into the LUKS header gap in a different format.
+A backup is advised before initialization is performed.
+
+Do you wish to initialize /dev/sdb1? [yn] y
+Enter existing LUKS password: **********
+```
+```
+# luksmeta --help
+Usage: luksmeta test -d DEVICE
+   or: luksmeta nuke -d DEVICE [-f]
+   or: luksmeta init -d DEVICE [-f] [-n]
+   or: luksmeta show -d DEVICE [-s SLOT]
+   or: luksmeta save -d DEVICE [-s SLOT]  -u UUID  < DATA
+   or: luksmeta load -d DEVICE  -s SLOT  [-u UUID] > DATA
+   or: luksmeta wipe -d DEVICE  -s SLOT  [-u UUID] [-f]
+```
+```
+# luksmeta show -d /dev/sdb1 
+0   active empty
+1   active cb6e8904-81ff-40da-a84a-07ab9ab5715e
+2 inactive empty
+3 inactive empty
+4 inactive empty
+5 inactive empty
+6 inactive empty
+7 inactive empty
+```
+If the Tang server is not available, force the Clevis framework to prompt for the LUKS passphrase during the boot process:
+```
+# systemctl enable clevis-luks-askpass.path
+```
+Add an entry to crypttab:
+```
+# vim /etc/crypttab
+crypto1  /dev/sdb1  none  _netdev
+```
+The third field specifies the absolute path to a file containing the encryption password. It is set to none in our case, which has a special meaning. Either the boot process will pause to prompt for manual entry of the encryption password on the server's console, or it will trigger block device decryption with NBDE.
+```
+# vim /etc/fstab
+/dev/mapper/crypto1  /mnt/crypto1  xfs  _netdev  1 2
+```
+The `_netdev` option is needed if we are using NBDE Tang servers as a condition to decrypt the devices. This is because NBDE needs to use the network to contact those servers, and so decryption cannot occur until the network is available.
+
+Restart the server, it should boot and mount the disk automatically:
+```
+server4.hl.local systemd[1]: Started Tang Server (10.11.1.72:45308).
+server4.hl.local systemd[1]: Starting Tang Server (10.11.1.72:45308)...
+server4.hl.local tangd[11582]: 10.11.1.72 POST /rec/b5lGSJ221X772PUouPklDCPJ6Uk => 200 (src/tangd.c:168)
+```
+### SSS
+Deploy highly available systems with Shamir's Secret Sharing. Clients should be configured with the ability to bind to multiple Tang servers. Check the man page for a high-availability setup:
+```
+# man clevis-encrypt-sss
+```
+Require two servers to be available for automatic decryption to occur:
+```
+# cfg='{"t":2,"pins":{"tang":[{"url":"http://server3.hl.local"},{"url":"server4.hl.local"}]}}'
+# clevis luks bind -d /dev/sdb1 sss "$cfg"
+```
+## Restrict USB Devices
+```
+# yum install usbguard usbutils udisks2
+# systemctl enable usbguard
+```
+```
+# usbguard
+ Usage: usbguard [OPTIONS] <command> [COMMAND OPTIONS] ...
+
+ Options:
+
+ Commands:
+  get-parameter <name>           Get the value of a runtime parameter.
+  set-parameter <name> <value>   Set the value of a runtime parameter.
+  list-devices                   List all USB devices recognized by the USBGuard daemon.
+  allow-device <id>              Authorize a device to interact with the system.
+  block-device <id>              Deauthorize a device.
+  reject-device <id>             Deauthorize and remove a device from the system.
+
+  list-rules                     List the rule set (policy) used by the USBGuard daemon.
+  append-rule <rule>             Append a rule to the rule set.
+  remove-rule <id>               Remove a rule from the rule set.
+
+  generate-policy                Generate a rule set (policy) based on the connected USB devices.
+  watch                          Watch for IPC interface events and print them to stdout.
+  read-descriptor                Read a USB descriptor from a file and print it in human-readable form.
+
+  add-user <name>                Add USBGuard IPC user/group (requires root privilges)
+  remove-user <name>             Remove USBGuard IPC user/group (requires root privileges)
+```
+Create an initial rule set and restart the service:
+```
+# usbguard generate-policy > /etc/usbguard/rules.conf
+# systemctl restart usbguard
+```
+List rules and devices:
+```
+# usbguard list-rules|cut -d" " -f1-6
+1: allow id 1d6b:0001 serial "0000:00:01.2"
+2: allow id 0627:0001 serial "42"
+```
+```
+# usbguard list-devices|cut -d" " -f1-6
+3: allow id 1d6b:0001 serial "0000:00:01.2"
+4: allow id 0627:0001 serial "42"
+```
+```
+# lsusb
+Bus 001 Device 002: ID 0627:0001 Adomax Technology Co., Ltd
+Bus 001 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+```
+If a USB device is attached to the system after the default policy is generated it is not authorised to access the system and is assigned a block rule target.
+```
+# usbguard list-devices|cut -d" " -f1-6
+3: allow id 1d6b:0002 serial "0000:00:1d.7"
+4: allow id 1d6b:0001 serial "0000:00:01.2"
+5: allow id 1d6b:0001 serial "0000:00:1d.0"
+6: allow id 1d6b:0001 serial "0000:00:1d.1"
+7: allow id 1d6b:0001 serial "0000:00:1d.2"
+8: allow id 0627:0001 serial "42"
+9: block id 0a5c:5800 serial "0123456789ABCD"
+```
+Dynamically authorise the USB device with device number 9:
+```
+# usbguard allow-device 9
+```
+Use `--permanent` to make the change permanent:
+```
+# usbguard allow-device --permanent 9
+```
+```
+# usbguard list-rules|cut -d" " -f1-6
+1: allow id 1d6b:0001 serial "0000:00:01.2"
+2: allow id 0627:0001 serial "42"
+3: allow id 0a5c:5800 serial "0123456789ABCD"
+```
+The usbguard daemon loads the `usbguard-daemon.conf` file, which it uses to configure runtime parameters of the daemon. We have to edit the `usbguard-daemon.conf` file to create a whitelist or blacklist.
+```
+# grep -ve ^# -ve ^$ /etc/usbguard/usbguard-daemon.conf
+RuleFile=/etc/usbguard/rules.conf
+ImplicitPolicyTarget=block
+PresentDevicePolicy=apply-policy
+PresentControllerPolicy=keep
+InsertedDevicePolicy=apply-policy
+RestoreControllerDeviceState=false
+DeviceManagerBackend=uevent
+IPCAllowedUsers=root
+IPCAllowedGroups=
+IPCAccessControlFiles=/etc/usbguard/IPCAccessControl.d/
+DeviceRulesWithPort=false
+AuditBackend=FileAudit
+AuditFilePath=/var/log/usbguard/usbguard-audit.log
+```
+Man pages:
+```
+# man usbguard             ;#(see EXAMPLES)
+# man usbguard-rules.conf  ;#(see Example Policies)
+# man usbguard-daemon.conf ;#(see IPC ACCESS CONTROL)
+```
+```
+# udisksctl help
+Usage:
+  udisksctl COMMAND
+
+Commands:
+  help            Shows this information
+  info            Shows information about an object
+  dump            Shows information about all objects
+  status          Shows high-level status
+  monitor         Monitor changes to objects
+  mount           Mount a filesystem
+  unmount         Unmount a filesystem
+  unlock          Unlock an encrypted device
+  lock            Lock an encrypted device
+  loop-setup      Set-up a loop device
+  loop-delete     Delete a loop device
+  power-off       Safely power off a drive
+  smart-simulate  Set SMART data for a drive
+```
+Use `udisksctl COMMAND --help` to get help on each command.
+```
+# udisksctl status
+MODEL                     REVISION  SERIAL               DEVICE
+----------------------------------------------------------------------
+QEMU QEMU HARDDISK        2.5+      drive-scsi0          sda
+QEMU QEMU HARDDISK        2.5+      drive-scsi1          sdb
+QEMU DVD-ROM              2.5+      QM00003              sr0
+```
+## Configure Intrusion Detection with AIDE
+```
+# yum install aide
+```
+The selection lines specify the files and directories that AIDE monitors, and the changes for which AIDE will watch. Selection lines can be regular, equals or negative.
+```
+# vim /etc/aide.conf
+[...]
+/etc/    PERMS
+=/home   DIR
+!/var/log/httpd/
+```
+Initialise the AIDE database and verify integrity:
+```
+# aide --init
+# mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+# aide --check
+```
+Update the database after expected changes are made to the system:
+```
+# aide --update
+```
+Configure AIDE daily scan:
+```
+# crontab -e
+0 6 * * * root /usr/sbin/aide --check
+```
+Man pages:
+```
+# man aide
+# man aide.conf
+```
+## Manage System Login Security using PAMs
+PAM manages both authentication and authorisation. PAM documentation:
+```
+$ man -k pam_
+```
+```
+$ man pam_faildelay
+$ man pam_time      ;# (see /etc/security/time.conf)
+$ man pam_access    ;# (see /etc/security/access.conf)
+$ man pam_pwquality ;# (see /etc/security/pwquality.conf)
+$ man pam_sepermit  ;# (see /etc/security/sepermit.conf)
+$ man sepermit.conf
+$ man pam_faillock  ;# (does not a have a dedicated configuration file)
+$ man pam_tty_audit
+$ man pam.conf
+```
+### PAM Rule Types
+
+* auth - users must pass these rules to validate their identity.
+* account - user account is valid and password has not expired.
+* password - control password changes (nothing to do with authentication).
+* session - manage tasks such as logging, device or console ownership.
+
+Note: PAM rules are parsed and executed from top to bottom! A dash (-) character in front of a type indicates to silently skip the rule if the module file is missing.
+```
+# cat /etc/pam.d/system-auth
+#%PAM-1.0
+# This file is auto-generated.
+# User changes will be destroyed the next time authconfig is run.
+auth        required      pam_env.so
+auth        required      pam_faildelay.so delay=2000000
+auth        sufficient    pam_unix.so nullok try_first_pass
+auth        requisite     pam_succeed_if.so uid >= 1000 quiet_success
+auth        required      pam_deny.so
+
+account     required      pam_unix.so
+account     sufficient    pam_localuser.so
+account     sufficient    pam_succeed_if.so uid < 1000 quiet
+account     required      pam_permit.so
+
+password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type=
+password    sufficient    pam_unix.so sha512 shadow nullok try_first_pass use_authtok
+password    required      pam_deny.so
+
+session     optional      pam_keyinit.so revoke
+session     required      pam_limits.so
+-session     optional      pam_systemd.so
+session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
+session     required      pam_unix.so
+```
+Common PAM controls:
+
+* required - the associated module must succeed.
+* requisite - similar to required but stops testing on error.
+* sufficient - returns success immediately if the associated module succeeds.
+* optional - ignore the result of the test, even if it fails.
+* include - include the rules from the provided PAM configuration file.
+* substack - works like include except that a failed test in the called file gives back the control to the current file.
+
+**IMPORTANT:** use the `authconfig` tool to configure PAM whenever possible.
+
+How to perform a backup and restore:
+```
+# authconfig --savebackup=/root/pam_backup
+# authconfig --restorebackup=/root/pam_backup
+```
+Note that authconfig modifies two files:
+
+`/etc/pam.d/system-auth-ac`
+`/etc/pam.d/password-auth-ac`
+
+Most of the PAM service configuration files include the `system-auth` and `password-auth` files. These two files are symbolic links to the `system-auth-ac` and `password-auth-ac` files.
+```
+# ls -l system-auth password-auth
+lrwxrwxrwx. 1 root root 16 Nov 12  2017 password-auth -> password-auth-ac
+lrwxrwxrwx. 1 root root 14 Nov 12  2017 system-auth -> system-auth-ac
+```
+When authconfig updates its `*-ac` files, the configuration changes take effect immediately.
+
+Prevent authconfig from overwriting local modifications:
+```
+# cd /etc/pam.d
+# cp system-auth-ac system-auth-local
+# cp password-auth-ac password-auth-local
+# rm system-auth password-auth
+# ln -s system-auth-local system-auth
+# ln -s password-auth-local password-auth
+# ls -l system-auth password-auth
+lrwxrwxrwx. 1 root root 19 Jun 17 17:52 password-auth -> password-auth-local
+lrwxrwxrwx. 1 root root 17 Jun 17 17:52 system-auth -> system-auth-local
+```
+If you need to enable SSSD:
+```
+# yum -y install sssd
+# authconfig --enablesssd --enablesssdauth --update
+# grep pam_sss /etc/pam.d/*
+```
+
+## Configure System Auditing
+
+* `/etc/audit/auditd.conf` - main auditd confiugration file.
+* `/etc/audit/audit.rules` - the audit rules loaded by auditd.
+* `/etc/audit/rules.d` - folder containing manually configured audit rules. 
+* `/var/log/audit/audit.log` - the default log file used by auditd.
+
+Documentation for `auditd`:
+```
+$ man auditd
+$ man auditd.conf
+$ man audit.rules
+$ man audispd.conf
+$ man ausearch
+$ man aureport
+$ man autrace
+$ man auditctl
+```
+```
+# grep -ve ^# /etc/audit/auditd.conf|sort -n
+action_mail_acct = root
+admin_space_left = 50
+admin_space_left_action = SUSPEND
+disk_error_action = SUSPEND
+disk_full_action = SUSPEND
+dispatcher = /sbin/audispd
+disp_qos = lossy
+distribute_network = no
+enable_krb5 = no
+flush = INCREMENTAL_ASYNC
+freq = 50
+krb5_principal = auditd
+local_events = yes
+log_file = /var/log/audit/audit.log
+log_format = RAW
+log_group = root
+max_log_file = 8
+max_log_file_action = ROTATE
+name_format = NONE
+num_logs = 5
+priority_boost = 4
+space_left = 75
+space_left_action = SYSLOG
+tcp_client_max_idle = 0
+tcp_listen_queue = 5
+tcp_max_per_addr = 1
+use_libwrap = yes
+verify_email = yes
+write_logs = yes
+```
+### Write Rules to Log Auditable Events
+
+Note that the order of rules is important. Audit rules work on first-match-wins basis.
+
+There are three types of audit rules:
+
+* File system rules (or watches) audit access to files and directories.
+* System call rules audit execution of system calls made by processes communicating with the kernel to access system resources.
+* Control rules configure the audit system itself.
+
+The basic syntax of a file system rule is as follows:
+```
+# auditctl -w file -p permissions -k key
+```
+The syntax of a system call rule is as follows:
+```
+# auditctl -a <list>,<action> \
+ [-F <filter-expression>] \
+ [-C <compare-expression>] \
+ [-S <system-call>]
+```
+**IMPORTANT:** the man page of `auditctl` contains examples!
+
+Remove all rules:
+```
+# auditctl -D
+```
+Set the currently loaded rules to be immutable:
+```
+# auditctl -e 2
+```
+### Enable Prepackaged Rules
+These rules are available in the `/usr/share/doc/audit-*/rules` directory as files with the suffix `.rules`.
+```
+# ls -1 /usr/share/doc/audit-*/rules
+10-base-config.rules
+10-no-audit.rules
+11-loginuid.rules
+12-cont-fail.rules
+12-ignore-error.rules
+20-dont-audit.rules
+21-no32bit.rules
+22-ignore-chrony.rules
+23-ignore-filesystems.rules
+30-nispom.rules
+30-pci-dss-v31.rules
+30-stig.rules
+31-privileged.rules
+32-power-abuse.rules
+40-local.rules
+41-containers.rules
+42-injection.rules
+43-module-load.rules
+70-einval.rules
+71-networking.rules
+99-finalize.rules
+README-rules
+```
+To use one of these prepackaged rule sets, copy the `.rules` file to the `/etc/audit/rules.d` directory, and run the `augenrules --load` command to reload the Audit rules.
+```
+# cp /usr/share/doc/audit-*/rules/30-stig.rules /etc/audit/rules.d/
+# augenrules --load
+# auditctl -l
+```
+Make the configuration immutable by using a prepackaged rule, note that a system reboot is required to change audit rules:
+```
+# cat /usr/share/doc/audit-*/rules/99-finalize.rules
+-e 2
+```
+### Produce Audit Reports
+
+The `aureport` utility allows you to generate summary and columnar reports on the events recorded in Audit log files. Examples:
+```
+# aureport --start yesterday 00:00:00 --end today 00:00:00
+# aureport -x --summary
+# aureport -u --failed --summary -i
+# aureport --tty
+```
+```
+# aureport --help
+usage: aureport [options]
+	-a,--avc			Avc report
+	-au,--auth			Authentication report
+	--comm				Commands run report
+	-c,--config			Config change report
+	-cr,--crypto		Crypto report
+	-e,--event			Event report
+	-f,--file			File name report
+	--failed			only failed events in report
+	-h,--host			Remote Host name report
+	--help				help
+	-i,--interpret		Interpretive mode
+	-if,--input <Input File name>	use this file as input
+	--input-logs		Use the logs even if stdin is a pipe
+	--integrity			Integrity event report
+	-l,--login			Login report
+	-k,--key			Key report
+	-m,--mods			Modification to accounts report
+	-ma,--mac			Mandatory Access Control (MAC) report
+	-n,--anomaly		aNomaly report
+	-nc,--no-config		Don't include config events
+	--node <node name>	Only events from a specific node
+	-p,--pid			Pid report
+	-r,--response		Response to anomaly report
+	-s,--syscall		Syscall report
+	--success			only success events in report
+	--summary			sorted totals for main object in report
+	-t,--log			Log time range report
+	-te,--end [end date] [end time]	ending date & time for reports
+	-tm,--terminal		TerMinal name report
+	-ts,--start [start date] [start time]	starting data & time for reports
+	--tty				Report about tty keystrokes
+	-u,--user			User name report
+	-v,--version		Version
+	--virt				Virtualization report
+	-x,--executable		eXecutable name report
+	If no report is given, the summary report will be displayed
+```
+Note: use the `ausearch` and `aureport` commands to analyse the audit log. Use `autrace`, `ausearch` and `aureport` to find info and generate a report:
+```
+# ausearch --start boot -m LOGIN --format csv
+```
+```
+# autrace /bin/ls /root
+Trace complete. You can locate the records with 'ausearch -i -p 1765'
+```
+```
+# ausearch -i -p 1765
+```
+```
+# ausearch -p 1765 --raw|aureport -i --file
+
+File Report
+===============================================
+# date time file syscall success exe auid event
+===============================================
+1. 23/06/19 15:01:44 /bin/ls execve yes /usr/bin/ls root 802
+2. 23/06/19 15:01:44 /etc/ld.so.preload access no /usr/bin/ls root 805
+3. 23/06/19 15:01:44 /etc/ld.so.cache open yes /usr/bin/ls root 806
+4. 23/06/19 15:01:44 /lib64/libselinux.so.1 open yes /usr/bin/ls root 810
+5. 23/06/19 15:01:44 /lib64/libcap.so.2 open yes /usr/bin/ls root 818
+6. 23/06/19 15:01:44 /lib64/libacl.so.1 open yes /usr/bin/ls root 825
+7. 23/06/19 15:01:44 /lib64/libc.so.6 open yes /usr/bin/ls root 833
+8. 23/06/19 15:01:44 /lib64/libpcre.so.1 open yes /usr/bin/ls root 841
+9. 23/06/19 15:01:44 /lib64/libdl.so.2 open yes /usr/bin/ls root 848
+10. 23/06/19 15:01:44 /lib64/libattr.so.1 open yes /usr/bin/ls root 856
+11. 23/06/19 15:01:44 /lib64/libpthread.so.0 open yes /usr/bin/ls root 863
+12. 23/06/19 15:01:44 /sys/fs/selinux statfs yes /usr/bin/ls root 891
+13. 23/06/19 15:01:44 /sys/fs/selinux statfs yes /usr/bin/ls root 892
+14. 23/06/19 15:01:44 /sys/fs/selinux stat yes /usr/bin/ls root 893
+15. 23/06/19 15:01:44 /etc/selinux/config access yes /usr/bin/ls root 896
+16. 23/06/19 15:01:44 /usr/lib/locale/locale-archive open yes /usr/bin/ls root 897
+17. 23/06/19 15:01:44 /root stat yes /usr/bin/ls root 903
+18. 23/06/19 15:01:44 /root openat yes /usr/bin/ls root 904
+```
+## Configure SELinux
+
+SELinux works in one of three modes: enforcing, permissive, disabled.
+```
+# grep ^SELINUX /etc/selinux/config
+SELINUX=enforcing
+SELINUXTYPE=targeted
+```
+```
+# getenforce
+Enforcing
+```
+```
+# setenforce
+usage:  setenforce [ Enforcing | Permissive | 1 | 0 ]
+```
+The most powerful way of getting SELinux information is by using man pages. On RHEL 7 SELinux man pages are not installed by default. We can install them and update the manual page index caches.
+```
+# yum provides *\sealert *\semanage *\sepolicy *\seinfo
+# yum install -y policycoreutils-python policycoreutils-devel \
+  setroubleshoot-server setools-console
+```
+```
+# sepolicy manpage -a -p /usr/share/man/man8
+# mandb
+```
+Use SELinux man pages:
+```
+$ man -k _selinux | less
+$ man audit2allow
+$ man semanage
+$ man semanage-port
+$ man semanage-fcontext
+$ man semanage-user
+$ man seinfo
+$ man restorecon
+```
+Listing various SElinux information:
+```
+# semanage fcontext -l
+# semanage port -l
+# semanage user -l
+# semanage login -l
+# semanage permissive -l
+# getsebool -a
+```
+Display the table that SELinux uses for this mapping:
+```
+# semanage login -l
+Login Name           SELinux User         MLS/MCS Range        Service
+
+__default__          unconfined_u         s0                   *
+root                 unconfined_u         s0-s0:c0.c1023       *
+sandy                user_u               s0                   *
+system_u             system_u             s0-s0:c0.c1023       *
+tomcat               staff_u              s0-s0:c0.c1023       *
+vince                staff_u              s0-s0:c0.c1023       *
+```
+Confined SELinux users:
+* **unconfined_u** - do not have additional user-based SELinux restrictions.
+* **user_u** - non administrative users, no "su" or "sudo" is allowed.
+* **staff_u** - regular users, can use "sudo" but not "su".
+* **sysadm_u** - system admin users, "su" and "sudo" are allowed.
+* **system_u** - user for system services. Do not use it for Linux users.
+
+Note that Linux users are mapped to the SELinux user `unconfined_u`. To modify the default mapping to `user_u`: (see `man semanage-login`):
+```
+# semanage login -m -s user_u -r s0 __default__
+```
+Map an existing Linux user to an SELinux user:
+```
+# semanage login -a -s sysadm_u vince
+```
+Remove the mapping:
+```
+# semanage login -d -s sysadm_u vince
+```
+### SELinux Usage Examples
+Add file-context for everything under /mnt/block1:
+```
+# semanage fcontext -a -t httpd_sys_content_t "/mnt/block1(/.*)?"
+# restorecon -Rv /mnt/block1
+```
+Allow Apache to listen on TCP port 8888:
+```
+# semanage port -a -t http_port_t -p tcp 8888
+```
+Allow Apache to send emails (permanently):
+```
+# setsebool -P httpd_can_sendmail=1
+```
+### Interpret SELinux Violations and Determine Remedial Action
+```
+# grep denied /var/log/audit/audit.log
+# ausearch --start boot -m AVC
+# sealert -a /var/log/audit/audit.log
+```
+### Restrict User Activity with SELinux User Mappings
+At login time, SELinux maps Linux users to SELinux users. Note: Linux users mapped to `unconfined_u` do not have additional user-based SELinux restrictions! Do not use `system_u` for Linux users.
+
+SELinux prevents Linux users mapped to `user_u` from becoming root by using `su` or `sudo`:
+```
+# useradd -Z user_u sandy
+```
+Linux users mapped to `staff_u` can use `sudo` but not `su`:
+```
+# useradd -Z staff_u tomcat
+```
+SELinux allows Linux users mapped to `sysadm_u` to use `su` and `sudo`:
+```
+# useradd -Z sysadm_u vincent
+```
+Note: by default users mapped to `sysadm_u` cannot use SSH to log in. Set the `ssh_sysadm_login` boolean to on if you need to allow it.
+```
+# setsebool -P ssh_sysadm_login on
+```
+We can restrict whether or not users can run executables in their home directory or in `/tmp`:
+```
+# getsebool -a|grep exec_content
+auditadm_exec_content --> on
+dbadm_exec_content --> on
+guest_exec_content --> on
+logadm_exec_content --> on
+secadm_exec_content --> on
+staff_exec_content --> on
+sysadm_exec_content --> on
+user_exec_content --> on
+xguest_exec_content --> on
+```
+To prevent users from executing programs in their home directories and `/tmp`, set boolean `user_exec_content` to off:
+```
+# setsebool -P user_exec_content off
+```
+**IMPORTANT:** SELinux allows `staff_u` users to change role to `sysadm_r`
+```
+# semanage user -l
+
+                Labelling  MLS/       MLS/
+SELinux User    Prefix     MCS Level  MCS Range          SELinux Roles
+
+guest_u         user       s0         s0                 guest_r
+root            user       s0         s0-s0:c0.c1023     staff_r sysadm_r system_r unconfined_r
+staff_u         user       s0         s0-s0:c0.c1023     staff_r sysadm_r system_r unconfined_r
+sysadm_u        user       s0         s0-s0:c0.c1023     sysadm_r
+system_u        user       s0         s0-s0:c0.c1023     system_r unconfined_r
+unconfined_u    user       s0         s0-s0:c0.c1023     system_r unconfined_r
+user_u          user       s0         s0                 user_r
+xguest_u        user       s0         s0                 xguest_r
+```
+This comes in handy when a user needs to run commands with `sudo`. In such case the user needs to change his current role to `sysadm_r`:
+```
+# cat /etc/sudoers.d/users
+vince  ALL= ROLE=sysadm_r /bin/systemctl restart httpd
+```
+Audit the SELinux policy. Retrieve the SELinux domain type of the `systemd` daemon:
+```
+# ps -Z -C systemd
+LABEL                             PID TTY          TIME CMD
+system_u:system_r:init_t:s0         1 ?        00:00:03 systemd
+```
+Retrieve the SELinux context type of the `vsftpd` executable:
+```
+# which vsftpd | xargs ls -Z
+-rwxr-xr-x. root root system_u:object_r:ftpd_exec_t:s0 /usr/sbin/vsftpd
+```
+Retrieve the SELinux domain transition rule for when a daemon of type `init_t` executes a program of type `ftpd_exec_t`:
+```
+# sesearch -T -s init_t -t ftpd_exec_t
+Found 1 semantic te rules:
+   type_transition init_t ftpd_exec_t : process ftpd_t;
+```
+Retrieve the SELinux domain type of the `vsftpd` daemon:
+```
+# ps -Z -C vsftpd
+LABEL                             PID TTY          TIME CMD
+system_u:system_r:ftpd_t:s0-s0:c0.c1023 3394 ? 00:00:00 vsftpd
+```
+```
+# touch /var/ftp/pub/test && ls -Z /var/ftp/pub/test
+-rw-r--r--. root root unconfined_u:object_r:public_content_t:s0 /var/ftp/pub/test
+```
+Retrieve the rule that allows the `ftpd_t` domain type to read files with the `public_content_t` type:
+```
+# sesearch -A -s ftpd_t -t public_content_t -c file
+Found 2 semantic av rules:
+   allow ftpd_t public_content_t : file { ioctl read getattr lock open } ;
+   allow ftpd_t non_security_file_type : file { ioctl read write create getattr setattr lock append unlink link rename open } ;
+```
+More info:
+```
+# sesearch --help
+Usage: sesearch [OPTIONS] RULE_TYPE [RULE_TYPE ...] [EXPESSION] [POLICY ...]
+
+Search the rules in a SELinux policy.
+
+RULE_TYPES:
+  -A, --allow               allow rules
+  --neverallow              neverallow rules
+  --auditallow              auditallow rules
+  -D, --dontaudit           dontaudit rules
+  -T, --type                type_trans, type_member, and type_change
+  --role_allow              role allow rules
+  --role_trans              role_transition rules
+  --range_trans             range_transition rules
+  --all                     all rules regardless of type, class, or perms
+EXPRESSIONS:
+  -s NAME, --source=NAME    rules with type/attribute NAME as source
+  -t NAME, --target=NAME    rules with type/attribute NAME as target
+  --role_source=NAME        rules with role NAME as source
+  --role_target=NAME        rules with role NAME as target
+  -c NAME, --class=NAME     rules with class NAME as the object class
+  -p P1[,P2,...], --perm=P1[,P2...]
+                            rules with the specified permission
+  -b NAME, --bool=NAME      conditional rules with NAME in the expression
+OPTIONS:
+  -d, --direct              do not search for type's attributes
+  -R, --regex               use regular expression matching
+  -n, --linenum             show line number for each rule if available
+  -S, --semantic            search rules semantically instead of syntactically
+  -C, --show_cond           show conditional expression for conditional rules
+  -h, --help                print this help text and exit
+  -V, --version             print version information and exit
+
+If no expression is specified, then all rules are shown.
+
+The default source policy, or if that is unavailable the default binary
+policy, will be opened if no policy is provided.
+```
+
+## Enforce Security Compliance with OpenSCAP and Workbench
+
+Install the SCAP Security Guide:
+```
+# yum install scap-security-guide
+```
+The `scap-security-guide` package installs predefined profiles in the `/usr/share/xml/scap/ssg/content/` directory.
+
+SCAP Workbench is a graphical tool that allows you to perform configuration scans. Install SCAP Workbench:
+```
+# yum install scap-workbench
+```
+Install the `openscap-scanner` package, which contains the `oscap` command-line utility:
+```
+# yum install openscap-scanner
+```
+```
+# oscap -h
+oscap
+
+OpenSCAP command-line tool
+
+Usage: oscap [options] module operation [operation-options-and-arguments]
+
+oscap options:
+   -h --help    		 - show this help
+   -q --quiet   		 - quiet mode
+   -V --version 		 - print info about supported SCAP versions
+
+Commands:
+    ds  			 - DataStream utilities
+    oval			 - Open Vulnerability and Assessment Language
+    xccdf       	 - eXtensible Configuration Checklist Description Format
+    cvss			 - Common Vulnerability Scoring System
+    cpe 			 - Common Platform Enumeration
+    cve 			 - Common Vulnerabilities and Exposures
+    cvrf			 - Common Vulnerability Reporting Framework
+    info			 - info module
+```
+Generate the HTML security guide for the Standard System Security profile:
+```
+# oscap xccdf generate guide \
+  --profile xccdf_org.ssgproject.content_profile_standard \
+  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml > guide.html
+```
+Run the `oscap xccdf eval` command to scan the system:
+```
+# oscap xccdf eval \
+  --profile xccdf_org.ssgproject.content_profile_standard \
+  --results /root/scan-results.xml \
+  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml
+```
+After the scan is complete, use the resulting XML file to generate a complete report in HTML format:
+```
+## oscap xccdf generate report scan-results.xml > human-readable.html
+```
+Note: the `oscap` generate fix command can be used to generate an Ansible Playbook from a profile or a scan result XML file, which can then be used to apply remediations.
+
+Creating an Ansible playbook for a profile:
+```
+# oscap xccdf generate fix \
+  --profile xccdf_org.ssgproject.content_profile_standard \
+  --fix-type ansible \
+  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml > remediate.yml
+```
+Note: always review the playbook before using it. Also, you can pick tasks from the playbook (e.g. the ones tagged high_severity):
+```
+# ansible-playbook --tags=high_severity remediate.yml
+```
+### Use Red Hat Satellite 6 Server to Implement an OpenSCAP Policy
+
+Note that Red Hat Satellite does not have an interface to create or edit tailoring files. You should create the tailoring file in SCAP Workbench and then upload it to the Satellite Server.
+
+Create default SCAP content on Satellite:
+```
+# foreman-rake foreman_openscap:bulk_upload:default
+```
+List the SCAP contents on Red Hat Satellite 6:
+```
+# hammer scap-content list
+```
+### Use Red Hat Insights to Scan Hosts for Security Compliance
+```
+# insights-client --register
+$ man insights-client
+```

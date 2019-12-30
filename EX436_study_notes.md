@@ -1,0 +1,400 @@
+# Study notes for EX436 High Availability Clustering exam (RHEL7)
+_by Tomas Nevar (tomas@lisenet.com)_
+
+## Exam objectives:
+
+* Configure a high-availability cluster, using either physical or virtual systems, that:
+  - Utilises shared storage.
+  - Provides service fail-over between the cluster nodes.
+  - Provides preferred node for a given service.
+  - Selectively fails over services based on specific constraints.
+  - Preemptively removes non-functioning cluster members to prevent corruption of shared storage.
+* Manage logical volumes in a clustered environment:
+  - Create volume groups that are available to all members of a highly available cluster.
+  - Create logical volumes that can be simultaneously mounted by all members of a high-availability cluster.
+* Configure a GFS file system to meet specified size, layout, and performance objectives.
+* Configure iSCSI initiators.
+* Use multipathed devices.
+* Configure cluster logging.
+* Configure cluster monitoring.
+
+## Useful Tip
+While not an exam requirement, but I found clusterssh very useful when managing multiple SSH sessions on different servers.
+## 1. Cluster Installation
+HA requires installation of Pacemaker software, fencing agents, configuration of the firewall and authentication of nodes:
+```
+# yum install -y pcs fence-agents-all
+# firewall-cmd --permanent --add-service=high-availability
+# firewall-cmd --reload
+# systemctl enable pcsd
+# systemctl start pcsd
+# echo password | passwd --stdin hacluster
+# pcs cluster auth -u hacluster -p password node1 node2 node3
+```
+## 2. Cluster Creation
+All nodes start and join the cluster automatically:
+```
+# pcs cluster setup --enable --start --name mycluster node1 node2 node3
+```
+## 3. Cluster Status
+```
+# pcs status --full
+# pcs status cluster
+# pcs status corosync
+# pcs status groups
+# pcs status nodes
+# pcs status resources
+```
+
+## 4. Cluster Management
+Add `--all` for all nodes.
+```
+# pcs cluster start
+# pcs cluster stop
+# pcs cluster enable
+# pcs cluster disable
+# pcs cluster standby
+# pcs cluster unstandby
+# pcs cluster destroy
+```
+
+### Add or Remove Cluster Nodes
+```
+# pcs cluster auth -u hacluster -p password node4
+# pcs cluster node add node4 --enable --start
+# pcs cluster node remove node4
+```
+## 5. Cluster Logging
+### Corosync Configuration and Logging
+Check the man page for information!
+```
+# man corosync.conf
+> to_stderr
+> to_syslog
+> to_logfile
+> logfile
+> logfile_priority
+> debug
+```
+```
+# vim /etc/corosync/corosync.conf
+# pcs cluster sync
+# pcs cluster corosync node1
+```
+### Pacemaker Logging
+```
+# vim /etc/sysconfig/pacemaker
+> PCMK_logfile
+> PCMK_logpriority
+```
+## 6. Quorum Configuration
+Check the man page for information!
+```
+# man votequorum
+> two_node
+> wait_for_all
+> last_man_standing
+> auto_tie_breaker
+> auto_tie_breaker_node
+```
+```
+# pcs property --default|grep quorum
+> no-quorum-policy: stop
+```
+```
+# vim /etc/corosync/corosync.conf
+# pcs cluster sync
+# pcs status corosync
+# corosync-quorumtool -s
+```
+## 7. Fencing / STONITH
+Check the man page for information!
+```
+# man -k fence_
+```
+```
+# pcs property --default|grep stonith
+> stonith-action: reboot
+> stonith-enabled: true
+> stonith-timeout: 60s
+```
+```
+# pcs stonith list
+# pcs stonith describe fence_xvm
+```
+### Generic Fence Agent Properties
+```
+> priority
+> pcmk_host_map
+> pcmk_host_list
+> pcmk_host_check
+```
+**IMPORTANT:** pcmk_host_map parameter maps host names to fence device ports!
+Format: hostname:port
+Example: node1.hl.local:kvm-name-node1
+```
+# pcs stonith show --full
+# pcs stonith fence node1
+```
+### Configuration of fence_xvm
+Copy `/etc/cluster/fence_xvm.key` from the hypervisor!
+```
+# man fence_xvm
+```
+```
+# firewall-cmd --permanent --add-port=1229/tcp
+# firewall-cmd --reload
+# fence_xvm -o list
+# fence_xvm -o off -H node1
+```
+### Fencing for a Single Node
+```
+# pcs stonith create fence_node1 fence_xvm \
+  key_file="/etc/cluster/fence_xvm.key" \
+  action="reboot" \
+  port="node1" \
+  pcmk_host_list="node1.hl.local"
+```
+### Fencing for Three Cluster Nodes
+```
+# pcs stonith create fence_all fence_xvm \
+  key_file="/etc/cluster/fence_xvm.key" \
+  action="reboot" \
+  pcmk_host_map="node1.hl.local:node1;node2.hl.local:node2;node3.hl.local:node3" \
+  pcmk_host_list="node1,node2,node3" \
+  pcmk_host_check="static-list"
+```
+### Configuration of fence_scsi
+```
+# pcs stonith create fence_myscsi fence_scsi \
+  devices=/dev/disk/by-id/dm-name-mpathc \
+  pcmk_monitor_action=metadata \
+  pcmk_host_list="node1.hl.local node2.hl.local node3.hl.local" \
+  pcmk_reboot_action="off" \
+  meta provides="unfencing"
+```
+## 8. Cluster with SELinux
+
+Cluster resources and SELinux. There are over 200 different cluster resources available for configuration on RHEL 7.1. Some will have SELinux configuration that needs tweaking. 
+
+The most powerful way of getting SELinux information is by using man pages. On RHEL 7 SELinux man pages are not installed by default. We need to install them and update the manual page index caches.
+```
+# yum install -y policycoreutils-devel
+# sepolicy manpage -a -p /usr/share/man/man8
+# mandb
+# man -k _selinux
+```
+### SELinux Configuration for Apache
+```
+# man httpd_selinux
+> setsebool -P httpd_use_cifs 1
+> setsebool -P httpd_use_nfs 1
+> setsebool -P httpd_can_network_connect_db 1
+> setsebool -P httpd_can_sendmail 1
+```
+Allow Apache to listen on TCP port 81:
+```
+# man semanage-port
+> semanage port -a -t http_port_t -p tcp 81
+```
+**VERY USEFUL:** install Apache manual and use its module documentation!
+```
+# yum install -y httpd-manual elinks
+# elinks -dump /usr/share/httpd/manual/mod/mod_status.html
+```
+## 9. Cluster Email Notifications
+The following resources can trigger email alerts on resource change:
+```
+ocf:heartbeat:MailTo - notifies recipients by email
+ocf:pacemaker:ClusterMon - runs crm_mon in the background
+```
+### MailTo
+```
+# man ocf_heartbeat_MailTo
+# pcs resource describe MailTo
+# less /usr/lib/ocf/resource.d/heartbeat/MailTo
+```
+Create a resource:
+```
+# pcs resource create clustermail MailTo \
+  email="root@localhost" \
+  subject="Cluster notification"
+```
+### ClusterMon
+```
+# man ocf_pacemaker_ClusterMon
+# pcs resource describe ClusterMon
+# less /usr/lib/ocf/resource.d/pacemaker/ClusterMon
+```
+Create a resource:
+```
+# pcs resource add clustermail ClusterMon \
+  extra_options="-E /usr/local/bin/cluster_email.sh" \
+  --clone
+```
+It is cloned because we want a copy of the resource on each node.
+
+## 10. Cluster Troubleshooting
+```
+# pcs status
+# pcs resource failcount show my_resource
+# pcs resource debug-start my_resource --full
+# corosync-quorumtool -s
+# crm_simulate -sL
+# journalctl -lf -u pacemaker -u corosync
+# grep denied /var/log/audit/audit.log
+# sealert -a /var/log/audit/audit.log
+# grep ERROR /var/log/pacemaker.log
+# grep ERROR /var/log/corosync.log
+# firewall-cmd --list-all
+```
+
+## 11. iSCSI Initiator Installation
+Don't start the iscsi service, configure the initiator name first!
+```
+# yum install -y iscsi-initiator-utils
+# systemctl enable iscsi
+```
+```
+# vim /etc/iscsi/initiatorname.iscsi 
+> InitiatorName=iqn.1994-05.com.redhat:node1
+```
+iSCSI target records are stored in `/var/lib/iscsi/nodes/`. Records for nodes are created by discovery (even before you log in). Delete the content of the folder if you need to start over!
+
+### iSCSI Configuration, Startup and Timeouts
+```
+# vim /etc/iscsi/iscsid.conf
+> node.startup = automatic
+> node.session.timeo.replacement_timeout = 120
+> node.conn[0].timeo.noop_out_interval = 5
+> node.conn[0].timeo.noop_out_timeout = 5
+```
+Use iSCSI examples from the man page!
+```
+# man iscsiadm
+```
+```
+# systemctl start iscsi
+# iscsiadm -m discovery -t sendtargets -p <target_ip>
+```
+Log into the target by using both paths:
+```
+# iscsiadm -m node -T iqn.2003-01.local.hl.nfs:target -p <path1_ip> -l
+# iscsiadm -m node -T iqn.2003-01.local.hl.nfs:target -p <path2_ip> -l
+```
+Show verbose information for troubleshooting:
+```
+# iscsiadm -m discovery -P1
+# iscsiadm -m node -P1
+# iscsiadm -m session -P3
+```
+List iSCSI and block devices:
+```
+# lsblk
+# lsscsi
+```
+## 12. Device Mapper Multipath Installation
+```
+# yum install -y device-mapper-multipath
+# man mpathconf
+# mpathconf --enable --with_multipathd y --user_friendly_names y
+# multipath -ll
+```
+### Multipath Configuration
+```
+# grep -ve "^#" -ve "^$" /etc/multipath.conf
+defaults {
+	user_friendly_names yes
+	find_multipaths yes
+	path_grouping_policy	failover
+	no_path_retry		fail
+}
+multipaths {
+	multipath {
+		wwid			36001405688c3235427e49e48d0f04745
+		alias			clusterWeblog
+		path_grouping_policy	failover
+		no_path_retry		fail
+	}
+}
+blacklist {
+	devnode "^vd[a-z]"
+}
+```
+Note: the defaults **{}** section in the `multipath.conf` produced by the mpathconf command does not contain the actual built-in defaults!
+
+Also note: the devices **{}** section overwrites defaults {}, and the multipaths {} section overwrites devices **{}**. Remember this: **multipaths > devices > defaults**
+
+## 13. Clustered LVM
+The `clvmd` daemon and the DLM lock manager must be installed before configuring clustered LVM.
+```
+# yum install -y dlm lvm2-cluster
+# lvmconf --enable_cluster
+# systemctl stop lvm2-lvmetad
+```
+The `lvmconf` command will configure the following:
+```
+> locking_type = 3
+> use_lvmetad = 0
+```
+Cluster dlm and clvmd resources and their ordering:
+```
+# pcs resource create mydlm controld op monitor interval=30s on-fail=fence clone interleave=true ordered=true
+# pcs resource create myclvmd clvm op monitor interval=30s on-fail=fence clone interleave=true ordered=true
+# pcs constraint order start mydlm-clone then myclvmd-clone
+# pcs constraint colocation add myclvmd-clone with mydlm-clone
+```
+Clustered LVM volume with a GFS2 file system:
+```
+# yum install -y gfs2-utils
+# pcs property set no-quorum-policy=freeze
+```
+```
+# pvcreate /dev/mapper/mpatha
+# vgcreate -Ay -cy clustervg /dev/mapper/mpatha
+# lvcreate --size 1G --name clusterlv clustervg
+```
+Use examples from the man page!
+```
+# man gfs2
+# mkfs.gfs2 -p lock_dlm -t cluster_name:fs_name -j 3 /dev/clustervg/clusterlv 
+```
+**IMPORTANT:** when creating a file system resource, use `noatime` to improve performance. Also, disable `gfs2.fsck` run on a GFS2 file system at boot time.
+```
+# pcs resource describe Filesystem
+# pcs resource create clusterfs Filesystem device="/dev/clustervg/clusterlv" \
+  directory="/cluster_share" fstype="gfs2" options="noatime" run_fsck="no" \
+  op monitor interval=10s on-fail=fence clone interleave=true
+```
+```
+# pcs constraint order start clvmd-clone then clusterfs-clone
+# pcs constraint colocation add clusterfs-clone with clvmd-clone
+```
+
+## 14. Manage GFS2 Filesystems
+```
+# man -k gfs2_
+gfs2_convert (8) - Convert a GFS1 filesystem to GFS2
+gfs2_edit (8)    - Display, print or edit GFS2 or GFS internal structures.
+gfs2_grow (8)    - Expand a GFS2 filesystem
+gfs2_jadd (8)    - Add journals to a GFS2 filesystem
+```
+## 15. Pacemaker Cluster Clone Options
+The following are available:
+* notify - when stopping or starting a copy of the clone, tell all the other copies beforehand.
+* ordered - should the copies be started in series (instead of in parallel)?
+* interleave - if this clone depends on another clone via an ordering constraint, is it allowed to start after the local instance of the other clone starts, rather than wait for all instances of the other clone to start?
+
+## 16. Manage Cluster Constraints
+The following are available:
+* location - controls the nodes on which resources may run.
+* order - controls the order in which resources are started/stopped.
+* colocation - controls whether two resources may run on the same node.
+
+Examples:
+```
+# pcs constraint location <resource id> prefers <node[=score]>
+# pcs constraint location <resource id> avoids <node[=score]>
+# pcs constraint order start <resource id> then start <resource id>
+# pcs constraint colocation add <source resource id> with <target resource id>
+```
