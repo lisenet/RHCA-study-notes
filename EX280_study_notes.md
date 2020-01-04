@@ -2,6 +2,8 @@
 _by Tomas Nevar (tomas@lisenet.com)_
 
 ## 1. Openshift Installation
+[Product Documentation for OpenShift Container Platform 3.9](https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/)
+
 Installation steps:
 ```
 $ sudo yum install atomic-openshift-utils
@@ -277,6 +279,24 @@ $ git clone https://github.com/vivekjuneja/docker_registry_cli
 $ cd docker_registry_cli
 $ python ./browser.py registry.lab.example.com list all ssl
 ```
+
+### Configure Persistent Storage for the Registry
+
+IMPORTANT: examples showing the use of existing persistent volume claims are available in the **Red Hat OpenShift Container Platform 3.9 Installation and Configuration** documentation, [chapter 3](https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html/installation_and_configuration/setting-up-the-registry#storage-for-the-registry).
+
+```
+$ oc volume dc/docker-registry --add --name=registry-storage \
+  -t pvc --overwrite --claim-name=<pvc_name>
+```
+```
+$ oc describe dc/docker-registry | grep -A4 Volumes
+  Volumes:
+   registry-storage:
+    Type:	PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:	registry-claim
+    ReadOnly:	false
+```
+
 ### Create a Router from Image
 ```
 $ oc adm router --images=registry.lab.example.com/openshift3/ose-haproxy-router:v3.9.14 \
@@ -347,6 +367,13 @@ $ oc create route edge --service=my-php-service \
     --key=php.key --cert=php.crt \
     --insecure-policy=Redirect
 ```
+### Create a Secret
+```
+$ oc create secret generic secret_name \
+  --from-literal=key1=secret1 \
+  --from-literal=key2=secret2
+```
+
 ## 5. Persistent Storage Using NFS
 
 ### Configure NFS Exports
@@ -615,6 +642,33 @@ $ docker commit <container_id>
 ```
 The new image will not have a repository or tag.
 
+### Log in to an OpenShift Internal Registry
+
+```
+$ docker login -p $(oc whoami -t) -u any docker-registry-default.192.168.99.107.nip.io
+```
+If there is a certificate error:
+```
+Error response from daemon: Get https://docker-registry-default.192.168.99.107.nip.io/v2/: x509: certificate is valid for *.router.default.svc.cluster.local, router.default.svc.cluster.local, not docker-registry-default.192.168.99.107.nip.io
+```
+Add a record for insecure registry to `/etc/docker/daemon.json`, e.g.:
+```
+{ "insecure-registries":["docker-registry-default.192.168.99.107.nip.io"] }
+```
+Restart the service and try to log in again:
+```
+$ sudo systemctl restart docker
+$ docker login -p $(oc whoami -t) -u any docker-registry-default.192.168.99.107.nip.io
+Login Succeeded
+```
+### Load Docker Image from TAR and Push to OpenShift Internal Registry
+```
+$ docker load -i my-httpd.tar
+$ docker tag <image_id> docker-registry-default.apps.lab.example.com/test/my-httpd
+$ docker login -p $(oc whoami -t) -u user docker-registry-default.apps.lab.example.com
+$ docker push docker-registry-default.apps.lab.example.com/test/my-httpd
+```
+
 ## 10. Minishift
 
 Minishift installation on Linux using VirtualBox:
@@ -739,5 +793,14 @@ Test:
 $ curl -k https://apache-webserver.192.168.99.107.nip.io
 Apache in a Docker container
 ```
+### Create a Database Server
+Use publicly accesible OpenShift 3.9 templates on [GitHub](https://github.com/openshift/origin/tree/release-3.9/examples/db-templates)
+
 ### Create WordPress Application
 Use publicly accesible OpenShift 3.9 templates on [GitHub](https://github.com/openshift/origin/tree/release-3.9/examples/wordpress)
+
+### Create a Git Server
+Use publicly accesible OpenShift 3.9 templates on [GitHub](https://github.com/openshift/origin/tree/release-3.9/examples/gitserver)
+
+### Image Streams
+Use publicly accesible OpenShift 3.9 templates on [GitHub](https://github.com/openshift/origin/tree/release-3.9/examples/image-streams)
