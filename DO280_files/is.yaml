@@ -1,0 +1,55 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"image.openshift.io/v1","kind":"ImageStream","metadata":{"annotations":{"openshift.io/display-name":"Apache HTTP Server (httpd)"},"name":"httpd","namespace":"openshift"},"spec":{"tags":[{"annotations":{"description":"Build and serve static content via Apache HTTP Server (httpd) on CentOS 7. For more information about using this builder image, including OpenShift considerations, see https://github.com/sclorg/httpd-container/blob/master/2.4/README.md.\n\nWARNING: By selecting this tag, your application will automatically update to use the latest version of Httpd available on OpenShift, including major versions updates.","iconClass":"icon-apache","openshift.io/display-name":"Apache HTTP Server (Latest)","openshift.io/provider-display-name":"Red Hat, Inc.","sampleRepo":"https://github.com/openshift/httpd-ex.git","supports":"httpd","tags":"builder,httpd"},"from":{"kind":"ImageStreamTag","name":"2.4"},"name":"latest","referencePolicy":{"type":"Local"}},{"annotations":{"description":"Build and serve static content via Apache HTTP Server (httpd) 2.4 on CentOS 7. For more information about using this builder image, including OpenShift considerations, see https://github.com/sclorg/httpd-container/blob/master/2.4/README.md.","iconClass":"icon-apache","openshift.io/display-name":"Apache HTTP Server 2.4","openshift.io/provider-display-name":"Red Hat, Inc.","sampleRepo":"https://github.com/openshift/httpd-ex.git","supports":"httpd","tags":"builder,httpd","version":"2.4"},"from":{"kind":"DockerImage","name":"docker.io/centos/httpd-24-centos7:latest"},"name":"2.4","referencePolicy":{"type":"Local"}}]}}
+    openshift.io/display-name: Apache HTTP Server (httpd)
+    openshift.io/image.dockerRepositoryCheck: 2020-01-03T20:48:16Z
+  creationTimestamp: null
+  generation: 2
+  name: httpd
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+  - annotations:
+      description: Build and serve static content via Apache HTTP Server (httpd) 2.4
+        on CentOS 7. For more information about using this builder image, including
+        OpenShift considerations, see https://github.com/sclorg/httpd-container/blob/master/2.4/README.md.
+      iconClass: icon-apache
+      openshift.io/display-name: Apache HTTP Server 2.4
+      openshift.io/provider-display-name: Red Hat, Inc.
+      sampleRepo: https://github.com/openshift/httpd-ex.git
+      supports: httpd
+      tags: builder,httpd
+      version: "2.4"
+    from:
+      kind: DockerImage
+      name: 172.30.1.1:5000/openshift/httpd:2.4
+    generation: 2
+    importPolicy: {}
+    name: "2.4"
+    referencePolicy:
+      type: Local
+  - annotations:
+      description: |-
+        Build and serve static content via Apache HTTP Server (httpd) on CentOS 7. For more information about using this builder image, including OpenShift considerations, see https://github.com/sclorg/httpd-container/blob/master/2.4/README.md.
+
+        WARNING: By selecting this tag, your application will automatically update to use the latest version of Httpd available on OpenShift, including major versions updates.
+      iconClass: icon-apache
+      openshift.io/display-name: Apache HTTP Server (Latest)
+      openshift.io/provider-display-name: Red Hat, Inc.
+      sampleRepo: https://github.com/openshift/httpd-ex.git
+      supports: httpd
+      tags: builder,httpd
+    from:
+      kind: DockerImage
+      name: 172.30.1.1:5000/openshift/httpd:latest
+    generation: 1
+    importPolicy: {}
+    name: latest
+    referencePolicy:
+      type: Local
+status:
+  dockerImageRepository: ""
