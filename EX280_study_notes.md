@@ -731,7 +731,22 @@ Flags:
 
 Use "minishift [command] --help" for more information about a command.
 ```
-
+### Deploy Internal Registry and Router on Minishift
+```
+$ oc label node localhost region=infra
+```
+```
+$ oc adm router --images=openshift/origin-haproxy-router:v3.11.0 \
+  --selector='region=infra' -n default
+```
+```
+$ oc adm registry --images=openshift/origin-docker-registry:v3.11.0 \
+  --selector='region=infra' -n default
+```
+```
+$ minishift openshift registry
+172.30.224.52:5000
+```
 ## 11. Examples
 
 ### Create Openshift App from Local Image with Secure Edge-terminated Route
