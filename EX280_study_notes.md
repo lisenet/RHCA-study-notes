@@ -825,3 +825,6 @@ Use publicly accesible OpenShift 3.9 templates on [GitHub](https://github.com/op
 
 ### Image Streams
 Use publicly accesible OpenShift 3.9 templates on [GitHub](https://github.com/openshift/origin/tree/release-3.9/examples/image-streams)
+
+### Various OpenShift Demos
+https://github.com/OpenShiftDemos
