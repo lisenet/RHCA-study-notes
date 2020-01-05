@@ -669,6 +669,12 @@ $ docker login -p $(oc whoami -t) -u user docker-registry-default.apps.lab.examp
 $ docker push docker-registry-default.apps.lab.example.com/test/my-httpd
 ```
 
+### Remove All Images and Containers
+```
+$ docker rm $(docker ps -a -q)
+$ docker rmi $(docker images -q)
+```
+
 ## 10. Minishift
 
 Minishift installation on Linux using VirtualBox:
