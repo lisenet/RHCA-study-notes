@@ -675,7 +675,7 @@ Minishift installation on Linux using VirtualBox:
 ```
 $ wget https://github.com/minishift/minishift/releases/download/v1.34.1/minishift-1.34.1-linux-amd64.tgz
 $ tar xf minishift-1.34.1-linux-amd64.tgz
-$ export MINISHIFT_HOME=/mnt/images/minishift```
+$ export MINISHIFT_HOME=/mnt/images/minishift
 $ minishift config set vm-driver virtualbox
 $ minishift config set disk-size 32G
 $ minishift config set cpus 2
