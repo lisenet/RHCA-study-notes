@@ -549,7 +549,7 @@ Update the Git repository:
 ```
 $ git clone http://services.lab.example.com/php-helloworld
 $ cd php-helloworld
-$ echo "the show mush to go" >> index.php
+$ echo "the show must go on" >> index.php
 $ git config --global push.default simple
 $ git add index.php
 $ git commit -m "test"
