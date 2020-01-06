@@ -430,6 +430,7 @@ spec:
   resources:
     requests:
       storage: 40Gi
+  volumeName: nfs-volume1
 ```
 Create the PVC:
 ```
@@ -484,6 +485,8 @@ $ oc create -f metrics-pv.yml
 $ oc get pv
 ```
 ### Ansible Inventory File
+IMPORTANT: a list of role variables that can be added to the inventory file is available in the **Red Hat OpenShift Container Platform 3.9 Installation and Configuration** documentation, [chapter 34](https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html/installation_and_configuration/install-config-cluster-metrics#metrics-ansible-variables).
+
 Ansible variables for the deployment of the metrics subsystem:
 ```
 [OSEv3:vars]
@@ -499,6 +502,9 @@ openshift_metrics_cassandra_pvc_size=5Gi
 openshift_metrics_cassandra_pvc_prefix=metrics
 ```
 Run Ansible playbook to install metrics.
+```
+$ ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-metrics/config.yml
+```
 
 ### Verify Installation
 ```
@@ -506,6 +512,8 @@ $ oc get pvc -n openshift-infra
 $ oc get pod -n openshift-infra
 $ oc get routes -n openshift-infra
 ```
+
+If something goes wrong, you can obtain diagnostic information using `oc describe` in each of the deployment configurations and pods. You can also use `oc logs` in the metrics subsystem pods and their respective deployer pods. The fix is probably to correct the Ansible variables in the inventory file.
 
 ## 7. Image Streams
 An image stream comprises any number of container images identified by tags.
@@ -528,6 +536,24 @@ ishttpd   172.30.1.1:5000/isproject/ishttpd   latest    5 seconds ago
 ### Import Template into OpenShift
 ```
 $ oc apply -f httpd.yml -n openshift
+```
+
+### Managing Application Deployments
+Deploy the S2I based `php-helloworld` application where the source code is available in the Git repository at `http://services.lab.example.com/php-helloworld`:
+
+```
+$ oc get is -n openshift
+$ oc new-app -i php:7.0 http://services.lab.example.com/php-helloworld
+```
+Update the Git repository:
+```
+$ git clone http://services.lab.example.com/php-helloworld
+$ cd php-helloworld
+$ echo "the show mush to go" >> index.php
+$ git config --global push.default simple
+$ git add index.php
+$ git commit -m "test"
+$ git push
 ```
 
 ## 8. Monitoring Applications with Probes 
@@ -667,6 +693,10 @@ $ docker load -i my-httpd.tar
 $ docker tag <image_id> docker-registry-default.apps.lab.example.com/test/my-httpd
 $ docker login -p $(oc whoami -t) -u user docker-registry-default.apps.lab.example.com
 $ docker push docker-registry-default.apps.lab.example.com/test/my-httpd
+```
+### Save Docker Image to TAR
+```
+$ docker save -o my-httpd.tar <image_id>
 ```
 
 ### Remove All Images and Containers
