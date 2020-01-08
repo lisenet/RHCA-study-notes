@@ -17,6 +17,7 @@ $ oc get nodes --show-labels
 $ oc get nodes -L region
 $ ssh root@master.lab.example.com
 $ oc adm policy add-cluster-role-to-user cluster-admin admin
+$ oc get events --sort-by='metadata.creationTimestamp'
 ```
 
 ## 2. Users, Roles and Projects
@@ -24,7 +25,7 @@ $ oc adm policy add-cluster-role-to-user cluster-admin admin
 ### Create a New User
 ```
 $ oc create user alice
-$ oc create user vince
+$ oc create user vince --full-name="Vincent Valentine"
 ```
 Get the current list of identifies:
 ```
@@ -374,6 +375,13 @@ $ oc create secret generic secret_name \
   --from-literal=key2=secret2
 ```
 
+Autoscale pods:
+```
+$ oc autoscale dc/my-httpd --min 1 --max 5 --cpu-percent=80
+$ oc get hpa/my-httpd
+$ oc get hpa --watch
+```
+
 ## 5. Persistent Storage Using NFS
 
 ### Configure NFS Exports
@@ -556,7 +564,7 @@ $ git commit -m "test"
 $ git push
 ```
 
-## 8. Monitoring Applications with Probes 
+## 8. Monitoring Applications with Probes
 IMPORTANT: examples of readiness and liveness checks are available in the **Red Hat OpenShift Container Platform 3.9 Developer Guide** documentation, [chapter 34](https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html/developer_guide/dev-guide-application-health).
 
 ```
