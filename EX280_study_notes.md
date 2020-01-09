@@ -563,6 +563,14 @@ $ git add index.php
 $ git commit -m "test"
 $ git push
 ```
+How to directly reference a Docker image on a registry using the ~ syntax:
+```
+$ oc new-app --name=testapp docker.io/centos/php-71-centos7~https://github.com/appuio/example-php-sti-helloworld.git
+```
+Start a build and follow logs:
+```
+$ oc start-build testapp --follow
+```
 
 ## 8. Monitoring Applications with Probes
 IMPORTANT: examples of readiness and liveness checks are available in the **Red Hat OpenShift Container Platform 3.9 Developer Guide** documentation, [chapter 34](https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html/developer_guide/dev-guide-application-health).
