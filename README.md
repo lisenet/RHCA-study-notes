@@ -12,13 +12,15 @@ A repository to keep study notes and other useful info for RHCA exams.
 * EX403 - Satellite Deployment and Systems Management
 * EX415 - Security
 * DO180 - Intro to containers, Kubernetes, and Red Hat OpenShift
+* EX280 - OpenShift Administration I
 
 ## Topics in Progress
 
-* EX280 - OpenShift Administration I
 
 ## Topics of Interest
 
+* EX288 - OpenShift Application Development
+* EX318 - Virtualisation
 * EX342 - Diagnostics and Troubleshooting
 * EX442 - Performance Tuning
 * EX210 - OpenStack
