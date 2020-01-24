@@ -16,6 +16,7 @@ A repository to keep study notes and other useful info for RHCA exams.
 
 ## Topics in Progress
 
+* EX220 - Hybrid Cloud Management
 
 ## Topics of Interest
 
