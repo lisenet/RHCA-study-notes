@@ -13,10 +13,9 @@ A repository to keep study notes and other useful info for RHCA exams.
 * EX415 - Security
 * DO180 - Intro to containers, Kubernetes, and Red Hat OpenShift
 * EX280 - OpenShift Administration I
+* EX220 - Hybrid Cloud Management
 
 ## Topics in Progress
-
-* EX220 - Hybrid Cloud Management
 
 ## Topics of Interest
 
