@@ -49,6 +49,8 @@ $ export MINISHIFT_HOME=/mnt/images/minishift
 $ minishift config set vm-driver virtualbox
 $ minishift config set disk-size 32G
 $ minishift config set memory 4096
+$ minishift config set cpu 2
+$ minishift config set insecure-registry 192.168.0.0/16
 $ minishift config set openshift-version v3.11.0
 $ minishift config view
 $ minishift start
@@ -107,12 +109,13 @@ Use "minishift [command] --help" for more information about a command.
 
 $ sudo yum install atomic-openshift-utils
 $ ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/prerequisites.yml
-$ ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/deplpoy_cluster.yml
+$ ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/deploy_cluster.yml
 
 ## Post-installation:
 
 $ oc login -u admin -p redhat --insecure-skip-tls-verify=true
-$ oc get nodes --show labels
+$ oc get nodes --show-labels
+$ oc get nodes -L region
 $ ssh master.lab.example.com
 $ sudo -i
 $ oc adm policy add-cluster-role-to-user cluster-admin admin
@@ -138,3 +141,396 @@ $ oc export --help ;# see Example section
 ## Deploy an app:
 
 $ oc new-app --name=hello -i php:7.0 http://services.lab.example.com/php-helloworld
+
+
+$ docker build -t node-hello:latest .
+$ docker images
+$ docker tag a9861ee36be4 registry.lab.example.com/node-hello:latest
+$ docker push registry.lab.example.com/node-hello:latest
+
+
+$ oc delete all -l app=<node-hello>
+$ oc get all
+$ oc describe pod <hello-1-deploy>
+$ oc get events --sort-by='.metadata.creationTimestamp'
+$ oc get dc <hello> -o yaml
+$ ssh root@node1
+$ vim /etc/sysconfig/docker
+$ oc rollout latest hellp
+$ oc logs <hello-2-abcd>
+$ pc expose service --hostname=hello.apps.lab.example.com <node-hello>
+$ oc debug pod <PODNAME>
+
+
+
+Accessing the Internal Registry:
+
+$ oc login -u developer
+$ oc whoami -t
+tdRquJSA8LW5HMLPvuNqb6vMnwcXW4S1FUpOd2msCd4
+
+$ minishift openshift registry
+172.30.1.1:5000
+
+$ ssh docker@minishift
+[docker@minishift ~]$ docker login -u developer -p tdRquJSA8LW5HMLPvuNqb6vMnwcXW4S1FUpOd2msCd4 172.30.1.1:5000
+Login Succeeded
+
+minishift openshift config view
+<registry_server>/<user_name>/<image_name>:<tag>
+
+
+
+
+
+$ oc get svc -n default 
+NAME              TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                   AGE
+docker-registry   ClusterIP   172.30.1.1       <none>        5000/TCP                  18d
+kubernetes        ClusterIP   172.30.0.1       <none>        443/TCP                   18d
+router            ClusterIP   172.30.203.145   <none>        80/TCP,443/TCP,1936/TCP   18d
+
+
+docker tag localimage 172.30.43.173:5000/test/localimage 
+docker push 172.30.43.173:5000/test/localimage
+oc new-app test/localimage --name=myapp
+
+
+$ oc new-app \
+    --name=mysqldb \
+    -e MYSQL_USER=minitest \
+    -e MYSQL_PASSWORD=ropesaidcant \
+    -e MYSQL_ROOT_PASSWORD=ropesaidcant \
+    -e MYSQL_DATABASE=minitest \
+    openshift/mysql-55-centos7
+
+$ oc describe pod mysqldb | grep -A 2 'Volumes'
+Volumes:
+  mysqldb-volume-1:
+    Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
+
+oc delete all -l app=mysqldb
+
+$ oc login -u system:admin
+$ oc get pv|head -n2
+NAME             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM     STORAGECLASS   REASON    AGE
+mysqldb-volume   2Gi        RWO            Recycle          Available                                      56m
+
+$ oc login -u developer
+
+$ oc set volume dc/mysqldb --add --overwrite --name=mysqldb-volume-1 -t pvc \
+  --claim-name=mysqldb-volume \
+  --claim-size=2Gi \
+  --claim-mode=RWO
+
+$ oc describe pod mysqldb | \grep -E -A 2 'Volumes|ClaimName'
+Volumes:
+  mysqldb-volume-1:
+    Type:    EmptyDir (a temporary directory that shares a pod's lifetime)
+--
+Volumes:
+  deployer-token-wxpvp:
+    Type:        Secret (a volume populated by a Secret)
+--
+Volumes:
+  mysqldb-volume-1:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  mysqldb-volume
+    ReadOnly:   false
+  default-token-m44l4:
+  
+$ oc get pvc
+NAME             STATUS    VOLUME           CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+mysqldb-volume   Bound     mysqldb-volume   2Gi        RWO                           33s
+
+*** Labels
+
+$ oc get nodes -L region
+$ oc label node node2.lab.example.com region=apps --overwrite=true
+$ oc get dc/hello -o yaml > dc.yml
+
+spec:
+  nodeSelector:
+    region: applications
+
+$ oc replace -f dc.yml
+
+$ oc adm manage-node --schedulable=false node2.lab.example.com
+$ oc adm drain node2.lab.example.com --delete-local-data
+
+Service account:
+
+$ oc create serviceaccount phpmyadmin-account
+$ oc adm policy add-scc-to-user anyuid -z phpmyadmin-account
+
+Docker import local image:
+
+$ docker load -i phpmyadmin-latest.tar
+$ docker images
+none 	none	none	
+
+$ docker tag 93d0d7db5ce2 docker-registry-default.apps.lab.example.com/schedule-is/phpmyadmin:4.7
+$ docker images
+$ TOKEN=$(oc whoami -t)
+$ docker login -u developer -p ${TOKEN} docker-registry-default.apps.lab.example.com
+
+# Certificate signed by unknown authority:
+$ scp registry.crt root@master:/etc/origin/master/registry.crt
+$ sudo cp registry.crt /etc/pki/ca-trust/source/anchors/docker-registry-default.apps.lab.example.com.crt
+$ sudo update-ca-trust
+$ sudo systemctl restart docker
+<<RUN DOCKER LOGIN AGAIN>>>
+
+
+$ docker push docker-registry-default.apps.lab.example.com/schedule-is/phpmyadmin:4.7
+
+$ oc expose service version --hostname=version.apps.lab.example.com
+
+$ oc autoscale dc/myapp --min 1 --max 10 --cpu-percent=80
+
+
+
+*** Installing the Metrics Subsystem 
+
+$ docker-registry-cli registry.lab.example.com search metrics-cassandra ssl
+$ docker-registry-cli registry.lab.example.com search metrics-hawkular-metrics ssl
+$ docker-registry-cli registry.lab.example.com search metrics-heapster ssl
+$ docker-registry-cli registry.lab.example.com search ose-recycler ssl
+
+ssh root@services cat /etc/exports.d/openshift-ansible.exports
+
+*** Managing and Monitoring OpenShift Container Platform
+
+Resource Requests and Limits for Pods
+
+A pod definition can include both resource requests and resource limits:
+
+* Resource requests
+Used for scheduling, and indicate that a pod is not able to run with less than the specified amount of compute resources. The scheduler tries to find a node with sufficient compute resources to satisfy the pod requests.
+* Resource limits
+Used to prevent a pod from using up all compute resources from a node. The node that runs a pod configures the Linux kernel cgroups feature to enforce the resource limits for the pod.
+
+
+$ oc get limits
+$ oc describe limits
+$ oc get quota
+$ oc describe quota
+
+$ oc describe node localhost|grep -A5 Allocated
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource  Requests     Limits
+  --------  --------     ------
+  cpu       300m (15%)   0 (0%)
+  memory    612Mi (15%)  0 (0%)
+
+
+$ oc login -u system:admin
+$ oc project default
+$ oc get dc
+NAME              REVISION   DESIRED   CURRENT   TRIGGERED BY
+docker-registry   1          1         1         config
+router            1          1         1         config
+
+$ oc get dc docker-registry -o yaml
+
+
+*** Readiness/liveness
+
+
+* Liveness Probe
+  A liveness probe determines whether or not an application running in a container is in ahealthystate. If the liveness probe returns detects an unhealthy state, OpenShift kills the pod and tries to redeploy it again. Developers can set a liveness probe by configuring thetemplate.spec.containers.livenessprobestanza of a pod configuration.
+
+* Readiness Probe
+
+  A readiness probe determines whether or not a container is ready to serve requests. If the readiness probe returns a failed state, OpenShift removes the container's IP address from the endpoints of all services. Developers can use readiness probes to signal to OpenShift that even though a container is running, it should not receive any traffic from a proxy. Developers can set a readiness probe by configuring thetemplate.spec.containers.readinessprobestanza of a pod configuration.
+
+$ curl http://probe.apps.lab.example.com/health
+OK
+$ curl http://probe.apps.lab.example.com/ready
+READY
+
+
+$ oc get events --sort-by='.metadata.creationTimestamp' | grep "probe failed"
+
+
+DOCUMENTATION
+
+Cluster Administration, chapter 6.2.2 Disabling Self-provisioning
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html/cluster_administration/admin-guide-managing-projects#disabling-self-provisioning
+
+$ oc adm policy remove-cluster-role-from-group self-provisioner system:authenticated system:authenticated:oauth
+
+Cluster Administration, chapter 10.3. Managing role bindings
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html/cluster_administration/admin-guide-manage-rbac#managing-role-bindings
+
+$ oc policy add-role-to-user edit developer
+
+
+Cluster Administration, chapter 17 Setting Quotas
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html/cluster_administration/admin-guide-quota
+
+$ oc create quota <name> --hard=pods=1
+
+
+Installation and Configuration, chapter 4.2.18. Using Wildcard Routes (for a Subdomain)
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html-single/installation_and_configuration/index#using-wildcard-routes
+
+$ oc scale dc/router --replicas=0
+$ oc set env dc/router ROUTER_ALLOW_WILDCARD_ROUTES=true
+$ oc scale dc/router --replicas=1
+$ oc get dc/router -o yaml|grep -i wildcard
+        - name: ROUTER_ALLOW_WILDCARD_ROUTES
+
+
+
+
+Installation and Configuration, chapter 4.2.10. Adding a Node Selector to a Deployment Configuration
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html-single/installation_and_configuration/index#adding-nodeselector-to-a-deployment
+
+$ oc label node 10.254.254.28 "router=first"
+$ oc edit dc <deploymentConfigName>
+
+...
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        router: router1
+    spec:
+      nodeSelector:
+        router: "first"
+...
+
+
+Installation and Configuration, chapter 4.2.13. Customizing the Default Routing Subdomain
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html-single/installation_and_configuration/index#customizing-the-default-routing-subdomain
+
+The default routing subdomain is defined in the /etc/origin/master/master-config.yaml file by default.
+
+$ ssh master
+$ find / -name master-config.yaml -type f -exec grep subdomain {} \;
+
+
+Installation and Configuration, 4.2.15. Using Wildcard Certificates
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html-single/installation_and_configuration/index#using-wildcard-certificates
+
+(https://www.arctiq.ca/our-blog/2016/11/5/changing-the-default-ssl-certificate-on-your-openshift-routers/)
+
+$ oc export secrets router-certs -o yaml > backup.yaml
+$ oc delete secret router-certs
+$ oc secrets new router-certs tls.crt=$NEW_PEM tls.key=$NEW_PRIVATE_KEY --type='kubernetes.io/tls' --confirm
+$ oc rollout latest dc/router
+
+
+$ CA=/etc/origin/master
+$ oc adm ca create-server-cert --signer-cert=$CA/ca.crt \
+      --signer-key=$CA/ca.key --signer-serial=$CA/ca.serial.txt \
+      --hostnames='*.cloudapps.example.com' \
+      --cert=cloudapps.crt --key=cloudapps.key
+
+$ cat cloudapps.crt cloudapps.key $CA/ca.crt > cloudapps.router.pem
+$ oc adm router --default-cert=cloudapps.router.pem --service-account=router
+
+$ CA=/var/lib/minishift/base/node
+
+
+Installation and Configuration, chapter 24.2.2. Provisioning
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html-single/installation_and_configuration/index#nfs-provisioning
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv0001
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+  - ReadWriteOnce
+  nfs:
+    path: /tmp
+    server: 172.17.0.2
+  persistentVolumeReclaimPolicy: Recycle
+
+Developer Guide, chapter 13.7. Importing Tag and Image Metadata
+https://access.redhat.com/documentation/en-us/openshift_container_platform/3.9/html-single/developer_guide/index#importing-tag-and-image-metadata
+
+$ oc import-image <image_stream_name>[:<tag>] --from=<docker_image_repo> --confirm
+
+$ oc login -u admin -p redhat
+$ oc create -f mysql-pv.yaml
+$ oc get pv
+
+$ oc get events
+$ oc rollout cancel dc/hello
+$ oc edit quota <name>
+$ oc logs -f bc/<name>
+$ oc logs -f dc/<name>
+$ oc delete all -f app=<name>
+
+
+$ oc apply -n openshift -f nodejs-mysql-template.yaml
+
+DOCKER
+
+$ docker build -t todoapp/todoui .
+$ docker tag todoapp/todoui:latest registry.lab.example.com/todoapp/todoui:latest
+$ docker push registry.lab.example.com/todoapp/todoui:latest
+
+$ oc whoami -c 
+$ oc delete is <name>
+
+
+$ sudo yum install python-flask python-requests 
+$ git clone https://github.com/vivekjuneja/docker_registry_cli
+$ cd docker_registry_cli
+$ python ./browser.py 172.30.1.1:5000 list all
+
+
+RECREATE REGISTRY FROM IMAGE
+
+$ oc get dc
+NAME              REVISION   DESIRED   CURRENT   TRIGGERED BY
+docker-registry   1          1         1         config
+router            1          1         1         config
+
+$ oc describe dc/docker-registry|grep Image
+    Image:	openshift/origin-docker-registry:v3.11.0
+    
+$ oc get svc
+NAME              TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                   AGE
+docker-registry   ClusterIP   172.30.1.1       <none>        5000/TCP                  24d
+kubernetes        ClusterIP   172.30.0.1       <none>        443/TCP                   24d
+router            ClusterIP   172.30.203.145   <none>        80/TCP,443/TCP,1936/TCP   24d
+
+$ oc get serviceaccounts
+NAME          SECRETS   AGE
+builder       2         24d
+default       2         24d
+deployer      2         24d
+pvinstaller   2         24d
+registry      2         24d
+router        2         24d
+
+$ oc get clusterrolebindings|grep registry
+registry-registry-role 
+
+$ oc delete all -l docker-registry
+pod "docker-registry-1-5tp4r" deleted
+replicationcontroller "docker-registry-1" deleted
+service "docker-registry" deleted
+deploymentconfig.apps.openshift.io "docker-registry" deleted
+
+$ oc delete serviceaccounts/registry
+$ oc delete clusterrolebindings/registry-registry-role
+
+$ oc adm registry --images=openshift/origin-docker-registry:v3.11.0
+
+$ minishift openshift registry
+172.30.167.162:5000
+
+$ oc describe dc/router|grep Image
+    Image:	openshift/origin-haproxy-router:v3.11.0
+
+$ oc get nodes --show-labels
+$ oc label node localhost region=homelab
+$ oc get nodes -L regions
