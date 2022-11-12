@@ -17,6 +17,8 @@ A repository to keep study notes and other useful info for RHCA exams.
 
 ## Topics in Progress
 
+EX180 - Intro to containers, Kubernetes, and Red Hat OpenShift
+
 ## Topics of Interest
 
 * EX288 - OpenShift Application Development
