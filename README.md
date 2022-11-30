@@ -11,13 +11,12 @@ A repository to keep study notes and other useful info for RHCA exams.
 * EX407 - Ansible
 * EX403 - Satellite Deployment and Systems Management
 * EX415 - Security
-* DO180 - Intro to containers, Kubernetes, and Red Hat OpenShift
 * EX280 - OpenShift Administration I
 * EX220 - Hybrid Cloud Management
+* EX180 - Intro to containers, Kubernetes, and Red Hat OpenShift
 
 ## Topics in Progress
 
-EX180 - Intro to containers, Kubernetes, and Red Hat OpenShift
 
 ## Topics of Interest
 
